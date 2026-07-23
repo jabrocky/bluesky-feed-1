@@ -25,6 +25,10 @@ Formáty: story 1080×1920, příspěvek 4:5 1080×1350.
 
 ## Pravidla
 
+- **VŽDY nejdřív navrhni text grafiky ke schválení** (klidně ve variantách)
+  a grafiku generuj až po odsouhlasení uživatelem. Neplatí, jen když
+  uživatel dodá finální znění sám.
+
 - **Logo projektu** (`templates/assets/logo_project.png`, průhledné PNG)
   vždy NAHOŘE uprostřed, bez podkladové karty.
 - **Logo sponzora** (`templates/assets/logo_sponsor_nobg.png`,
