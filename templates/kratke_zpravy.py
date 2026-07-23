@@ -167,6 +167,109 @@ def kratke_zpravy(topic, headline, text, out, date_label=None):
     return out
 
 
+
+
+
+def kratke_zpravy_fb(topic, headline, text, out, photo=None, photo_credit=None):
+    """FB varianta 4:5 (1080×1350): kompaktní hlavička, foto slot, text karta."""
+    logo_p = Image.open(os.path.join(ASSETS, "logo_project.png")).convert("RGBA")
+    logo_s = Image.open(os.path.join(ASSETS, "logo_sponsor_nobg.png")).convert("RGBA")
+
+    W, H = 1080, 1350
+    img = Image.new("RGB", (W, H), CREAM)
+    d = ImageDraw.Draw(img)
+    for y in range(H):
+        t = y / H
+        c = tuple(int(CREAM[i] + (CREAM_DK[i] - CREAM[i]) * t) for i in range(3))
+        d.line([(0, y), (W, y)], fill=c)
+    seam_col = (198, 128, 112, 255)
+    draw_seam(img, W + 260, -240, 600, 100, 168, seam_col)
+    draw_seam(img, -260, H + 240, 600, 282, 350, seam_col)
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, W, 12], fill=RUST)
+    d.rectangle([0, H - 12, W, H], fill=RUST)
+
+    lh = 150
+    lp = logo_p.copy()
+    s = lh / lp.size[1]
+    lp = lp.resize((int(lp.size[0] * s), lh), Image.LANCZOS)
+    img.paste(lp, (90, 42), lp)
+    d = ImageDraw.Draw(img)
+    d.text((280, 85), "KRÁTKÉ", font=font(F_BOLD, 74), fill=INK, anchor="lm")
+    rotated_text(img, "ZPRÁVY", font(F_BOLD, 74), CREAM, 505, 160, -2.0,
+                 pad=26, box=(RUST, RUST_DARK, 4, 10))
+    d = ImageDraw.Draw(img)
+
+    tf = font(F_BOLD, 26)
+    cw = d.textlength(topic, font=tf)
+    d.rounded_rectangle([W - 90 - cw - 64, 70, W - 90, 126], radius=28, fill=INK)
+    d.text((W - 90 - 32 - cw / 2, 98), topic, font=tf, fill=CREAM, anchor="mm")
+
+    hf = font(F_BOLD, 50)
+    hy = 280
+    for ln in wrap(d, headline, hf, W - 180):
+        d.text((W // 2, hy), ln, font=hf, fill=RUST_DARK, anchor="mm")
+        hy += 62
+
+    # výška fota se přizpůsobí délce textu, aby karta nekolidovala s patičkou
+    bf = font(F_REG, 30)
+    lines = wrap(d, text, bf, W - 250)
+    line_h = 46
+    card_h = len(lines) * line_h + 60
+    footer_top = H - 150
+    ph_top = hy + 25
+    ph_bot = footer_top - card_h - 30
+    if ph_bot - ph_top < 260:
+        ph_bot = ph_top + 260  # minimální výška fota; delší text raději zkrátit
+
+    if photo:
+        pimg = Image.open(photo).convert("RGB")
+        bw, bh = W - 160, ph_bot - ph_top
+        pw, ph_ = pimg.size
+        sc = max(bw / pw, bh / ph_)
+        nw, nh = int(pw * sc) + 1, int(ph_ * sc) + 1
+        rs = pimg.resize((nw, nh), Image.LANCZOS)
+        x = (nw - bw) // 2
+        y = int((nh - bh) * 0.3)
+        crop = rs.crop((x, y, x + bw, y + bh))
+        mask = Image.new("L", (bw, bh), 0)
+        md = ImageDraw.Draw(mask)
+        md.rounded_rectangle([0, 0, bw - 1, bh - 1], radius=20, fill=255)
+        img.paste(crop, (80, ph_top), mask)
+        d.rounded_rectangle([80, ph_top, W - 80, ph_bot], radius=20, outline=RUST, width=4)
+        if photo_credit:
+            d.text((W - 95, ph_bot - 24), photo_credit,
+                   font=font(F_REG, 18), fill=(240, 240, 240), anchor="rm")
+    else:
+        d.rounded_rectangle([80, ph_top, W - 80, ph_bot], radius=20,
+                            fill=(225, 218, 203), outline=(200, 190, 175), width=2)
+        d.text((W // 2, (ph_top + ph_bot) // 2), "FOTO",
+               font=font(F_BOLD, 44), fill=(180, 170, 155), anchor="mm")
+
+    card_top = ph_bot + 30
+    card_bot = card_top + card_h
+    d.rounded_rectangle([80, card_top, W - 80, card_bot], radius=20,
+                        fill=WHITE, outline=(205, 195, 180), width=2)
+    d.rounded_rectangle([80, card_top, 102, card_bot], radius=10, fill=RUST)
+    ty = card_top + 38
+    for ln in lines:
+        d.text((126, ty), ln, font=bf, fill=INK, anchor="lm")
+        ty += line_h
+
+    sh = 58
+    ls = logo_s.copy()
+    s = sh / ls.size[1]
+    ls = ls.resize((int(ls.size[0] * s), sh), Image.LANCZOS)
+    d.text((W // 2, H - 118), "PARTNER", font=font(F_BOLD, 19), fill=INK_SOFT, anchor="mm")
+    img.paste(ls, ((W - ls.size[0]) // 2, H - 100), ls)
+    d = ImageDraw.Draw(img)
+    d.text((W // 2, H - 32),
+           "milujeme-baseball.cz  ·  #MilujemeBaseball  #BaseballCzechia",
+           font=font(F_REG, 23), fill=INK_SOFT, anchor="mm")
+    img.save(out)
+    return out
+
+
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--topic", required=True, help='např. "MLB · APPLE TV"')
@@ -174,5 +277,12 @@ if __name__ == "__main__":
     p.add_argument("--text", required=True)
     p.add_argument("--date", default=None, help='volitelný druhý chip, např. "19. 7."')
     p.add_argument("--out", default="kratke_zpravy.png")
+    p.add_argument("--fb", action="store_true", help="FB varianta 4:5 s foto slotem")
+    p.add_argument("--photo", default=None, help="cesta k fotce (jen --fb)")
+    p.add_argument("--photo-credit", default=None, help="credit fotky (jen --fb)")
     a = p.parse_args()
-    print(kratke_zpravy(a.topic, a.headline, a.text, a.out, a.date))
+    if a.fb:
+        print(kratke_zpravy_fb(a.topic, a.headline, a.text, a.out,
+                               photo=a.photo, photo_credit=a.photo_credit))
+    else:
+        print(kratke_zpravy(a.topic, a.headline, a.text, a.out, a.date))
