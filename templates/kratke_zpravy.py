@@ -423,3 +423,117 @@ def aktualita(topic, headline, intro, sections, out, photo=None, photo_credit=No
            font=font(F_REG, 26), fill=INK_SOFT, anchor="mm")
     img.save(out)
     return out
+
+
+def aktualita_fb(topic, headline, intro, out, photo=None, photo_credit=None,
+                 highlight=None):
+    """AKTUALITA pro FB/IG příspěvek 4:5 (1080×1350).
+
+    highlight: volitelný (label, value) pruh pod textem, např. ("BILANCE", "3-17").
+    """
+    logo_p = Image.open(os.path.join(ASSETS, "logo_project.png")).convert("RGBA")
+    logo_s = Image.open(os.path.join(ASSETS, "logo_sponsor_nobg.png")).convert("RGBA")
+
+    W, H = 1080, 1350
+    img = Image.new("RGB", (W, H), CREAM)
+    d = ImageDraw.Draw(img)
+    for y in range(H):
+        t = y / H
+        c = tuple(int(CREAM[i] + (CREAM_DK[i] - CREAM[i]) * t) for i in range(3))
+        d.line([(0, y), (W, y)], fill=c)
+    seam_col = (198, 128, 112, 255)
+    draw_seam(img, W + 260, -240, 600, 100, 168, seam_col)
+    draw_seam(img, -260, H + 240, 600, 282, 350, seam_col)
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, W, 12], fill=RUST)
+    d.rectangle([0, H - 12, W, H], fill=RUST)
+
+    lh = 140
+    lp = logo_p.copy()
+    s = lh / lp.size[1]
+    lp = lp.resize((int(lp.size[0] * s), lh), Image.LANCZOS)
+    img.paste(lp, (85, 40), lp)
+    d = ImageDraw.Draw(img)
+    rotated_text(img, "AKTUALITA", font(F_BOLD, 62), CREAM, 545, 108, -2.0,
+                 pad=24, box=(RUST, RUST_DARK, 4, 10))
+    d = ImageDraw.Draw(img)
+
+    tf = font(F_BOLD, 24)
+    cw = d.textlength(topic, font=tf)
+    d.rounded_rectangle([W - 85 - cw - 56, 178, W - 85, 232], radius=27, fill=INK)
+    d.text((W - 85 - 28 - cw / 2, 205), topic, font=tf, fill=CREAM, anchor="mm")
+
+    hf = font(F_BOLD, 46)
+    hy = 205
+    for ln in wrap(d, headline, hf, W - 420):
+        d.text((85, hy), ln, font=hf, fill=RUST_DARK, anchor="lm")
+        hy += 56
+
+    # rozvržení: foto → text → volitelný highlight pruh
+    bf = font(F_REG, 29)
+    lines = wrap(d, intro, bf, W - 250)
+    line_h = 44
+    intro_h = len(lines) * line_h + 50
+    hl_h = 76 if highlight else 0
+    footer_top = H - 140
+    ph_top = hy + 30
+    photo_h = footer_top - ph_top - 26 - intro_h - (hl_h + 20 if highlight else 0)
+    photo_h = max(240, min(640, photo_h))
+    ph_bot = ph_top + photo_h
+
+    if photo:
+        pimg = Image.open(photo).convert("RGB")
+        bw, bh = W - 160, ph_bot - ph_top
+        pw, ph_ = pimg.size
+        sc = max(bw / pw, bh / ph_)
+        nw, nh = int(pw * sc) + 1, int(ph_ * sc) + 1
+        rs = pimg.resize((nw, nh), Image.LANCZOS)
+        x = (nw - bw) // 2
+        y = int((nh - bh) * 0.4)
+        crop = rs.crop((x, y, x + bw, y + bh))
+        mask = Image.new("L", (bw, bh), 0)
+        md = ImageDraw.Draw(mask)
+        md.rounded_rectangle([0, 0, bw - 1, bh - 1], radius=20, fill=255)
+        img.paste(crop, (80, ph_top), mask)
+        d.rounded_rectangle([80, ph_top, W - 80, ph_bot], radius=20, outline=RUST, width=4)
+        if photo_credit:
+            d.text((W - 95, ph_bot - 24), photo_credit,
+                   font=font(F_REG, 18), fill=(240, 240, 240), anchor="rm")
+    else:
+        d.rounded_rectangle([80, ph_top, W - 80, ph_bot], radius=20,
+                            fill=(225, 218, 203), outline=(200, 190, 175), width=2)
+        d.text((W // 2, (ph_top + ph_bot) // 2), "FOTO",
+               font=font(F_BOLD, 44), fill=(180, 170, 155), anchor="mm")
+
+    card_top = ph_bot + 26
+    card_bot = card_top + intro_h
+    d.rounded_rectangle([80, card_top, W - 80, card_bot], radius=20,
+                        fill=WHITE, outline=(205, 195, 180), width=2)
+    d.rounded_rectangle([80, card_top, 102, card_bot], radius=10, fill=RUST)
+    ty = card_top + 34
+    for ln in lines:
+        d.text((126, ty), ln, font=bf, fill=INK, anchor="lm")
+        ty += line_h
+
+    if highlight:
+        label, value = highlight
+        hb_top = card_bot + 20
+        hb_bot = hb_top + hl_h
+        d.rounded_rectangle([80, hb_top, W - 80, hb_bot], radius=16, fill=RUST)
+        d.text((110, (hb_top + hb_bot) // 2), label,
+               font=font(F_BOLD, 30), fill=CREAM, anchor="lm")
+        d.text((W - 110, (hb_top + hb_bot) // 2), value,
+               font=font(F_BOLD, 40), fill=CREAM, anchor="rm")
+
+    sh = 56
+    ls = logo_s.copy()
+    s = sh / ls.size[1]
+    ls = ls.resize((int(ls.size[0] * s), sh), Image.LANCZOS)
+    d.text((W // 2, H - 118), "PARTNER", font=font(F_BOLD, 19), fill=INK_SOFT, anchor="mm")
+    img.paste(ls, ((W - ls.size[0]) // 2, H - 100), ls)
+    d = ImageDraw.Draw(img)
+    d.text((W // 2, H - 32),
+           "milujeme-baseball.cz  ·  #MilujemeBaseball  #BaseballCzechia",
+           font=font(F_REG, 23), fill=INK_SOFT, anchor="mm")
+    img.save(out)
+    return out
