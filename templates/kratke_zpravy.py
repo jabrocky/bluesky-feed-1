@@ -339,13 +339,16 @@ def aktualita(topic, headline, intro, sections, out, photo=None, photo_credit=No
     intro_lines = wrap(d, intro, bf, W - 250)
     line_h = 46
     intro_h = len(intro_lines) * line_h + 52
-    results_h = 40
-    for _label, _games in sections:
-        results_h += 42 + len(_games) * 48
+    results_h = 0
+    if sections:
+        results_h = 40
+        for _label, _games in sections:
+            results_h += 42 + len(_games) * 48
     footer_top = H - 215
     ph_top = hy + 25
-    photo_h = footer_top - ph_top - 28 - intro_h - 26 - results_h
-    photo_h = max(260, min(430, photo_h))
+    gap = 26 if results_h else 0
+    photo_h = footer_top - ph_top - 28 - intro_h - gap - results_h
+    photo_h = max(260, min(620 if not results_h else 430, photo_h))
     ph_bot = ph_top + photo_h
     if photo:
         pimg = Image.open(photo).convert("RGB")
@@ -388,10 +391,11 @@ def aktualita(topic, headline, intro, sections, out, photo=None, photo_credit=No
     res_top = card_bot + 26
     ry = res_top + 28
     res_bot = res_top + results_h
-    d.rounded_rectangle([80, res_top, W - 80, res_bot], radius=20,
-                        fill=WHITE, outline=(205, 195, 180), width=2)
-    last_section = len(sections) - 1
-    for si, (label, games) in enumerate(sections):
+    if sections:
+        d.rounded_rectangle([80, res_top, W - 80, res_bot], radius=20,
+                            fill=WHITE, outline=(205, 195, 180), width=2)
+    last_section = len(sections) - 1 if sections else -1
+    for si, (label, games) in enumerate(sections or []):
         d.text((130, ry), label, font=lbl_f, fill=RUST, anchor="lm")
         ry += 42
         for gi, (opp, score) in enumerate(games):
