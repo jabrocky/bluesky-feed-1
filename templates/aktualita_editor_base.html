@@ -1,0 +1,447 @@
+<div class="app">
+  <aside class="panel">
+    <h1>AKTUALITA<span>Milujeme Baseball</span></h1>
+
+    <div class="fmt">
+      <button class="fmt-btn active" data-fmt="story">Story 9:16</button>
+      <button class="fmt-btn" data-fmt="post">Příspěvek 4:5</button>
+    </div>
+
+    <label>Téma (chip)
+      <input id="topic" value="EXTRALIGA" maxlength="40">
+    </label>
+
+    <label>Titulek
+      <textarea id="headline" rows="2">Hroši Brno a Kotlářka Praha míří do playoff</textarea>
+    </label>
+
+    <label>Text zprávy
+      <textarea id="body" rows="6">Extraliga zná první dva jisté účastníky playoff. Postup do vyřazovací části si zajistily týmy Hroši Brno a Kotlářka Praha, které už z první čtveřice po základní části nemohou vypadnout. O zbylá dvě místa v playoff se bude rozhodovat v posledních kolech.</textarea>
+    </label>
+
+    <div class="drop" id="drop">
+      <input type="file" id="file" accept="image/*" hidden>
+      <p><strong>Fotka</strong></p>
+      <p class="hint">Přetáhni sem, klikni, nebo vlož přes Ctrl+V</p>
+      <button type="button" class="ghost" id="clearPhoto">Odebrat fotku</button>
+    </div>
+
+    <label>Popisek fotky (credit)
+      <input id="credit" placeholder="foto: Matyáš Fous">
+    </label>
+
+    <details>
+      <summary>Výsledky (nepovinné)</summary>
+      <p class="hint">Řádek se <code>#</code> je nadpis sekce. Jinak <code>Soupeř | 7:1</code>.</p>
+      <textarea id="results" rows="7" placeholder="#ZÁKLADNÍ SKUPINA
+Ukrajina | 7:1
+Německo | 11:5
+#FINÁLE
+Španělsko | 4:2"></textarea>
+      <label class="row"><input type="checkbox" id="hiLast" checked> Zvýraznit poslední řádek</label>
+      <label>Předpona řádku
+        <input id="prefix" value="Česko – " maxlength="24">
+      </label>
+    </details>
+
+    <details>
+      <summary>Zvýrazněný pruh (nepovinné)</summary>
+      <div class="two">
+        <label>Popisek<input id="hlLabel" placeholder="BILANCE"></label>
+        <label>Hodnota<input id="hlValue" placeholder="3-17"></label>
+      </div>
+    </details>
+
+    <label class="row"><input type="checkbox" id="showPartner" checked> Zobrazit partnera dole</label>
+
+    <button id="download" class="primary">Stáhnout PNG</button>
+    <p class="hint center" id="dims"></p>
+  </aside>
+
+  <main class="stage">
+    <canvas id="cv"></canvas>
+  </main>
+</div>
+
+<style>
+  :root{
+    --cream:#f0ebe0; --cream-dk:#e4ddce; --rust:#9a3324; --rust-dark:#76261a;
+    --ink:#28221e; --ink-soft:#6e645c; --white:#fcfaf6;
+    --panel:#ffffff; --line:#e2dbcd; --page:#efece4;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       color:var(--ink);background:var(--page)}
+  .app{display:grid;grid-template-columns:360px 1fr;min-height:100vh}
+  @media (max-width:900px){.app{grid-template-columns:1fr}}
+
+  .panel{background:var(--panel);border-right:1px solid var(--line);padding:22px 20px 40px;
+         display:flex;flex-direction:column;gap:14px;overflow-y:auto;max-height:100vh}
+  @media (max-width:900px){.panel{max-height:none;border-right:0;border-bottom:1px solid var(--line)}}
+  .panel h1{margin:0 0 4px;font-size:21px;letter-spacing:.04em;color:var(--rust)}
+  .panel h1 span{display:block;font-size:12px;font-weight:400;letter-spacing:.12em;
+                 text-transform:uppercase;color:var(--ink-soft);margin-top:3px}
+
+  label{display:block;font-size:12px;font-weight:600;letter-spacing:.06em;
+        text-transform:uppercase;color:var(--ink-soft)}
+  label.row{display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;
+            font-weight:500;letter-spacing:0;color:var(--ink)}
+  input[type=text],input:not([type]),textarea{width:100%;margin-top:6px;padding:9px 11px;
+        font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line);
+        border-radius:9px;resize:vertical}
+  textarea{line-height:1.45}
+  input:focus,textarea:focus{outline:2px solid rgba(154,51,36,.35);border-color:var(--rust)}
+
+  .fmt{display:flex;gap:8px}
+  .fmt-btn{flex:1;padding:9px 6px;font:inherit;font-weight:600;cursor:pointer;
+           background:#fff;border:1px solid var(--line);border-radius:9px;color:var(--ink-soft)}
+  .fmt-btn.active{background:var(--rust);border-color:var(--rust);color:#fff}
+
+  .drop{border:2px dashed var(--line);border-radius:12px;padding:16px;text-align:center;
+        cursor:pointer;background:#fbf9f5;transition:.15s}
+  .drop.over{border-color:var(--rust);background:#f7eee9}
+  .drop p{margin:0}
+  .drop p+p{margin-top:4px}
+  .hint{font-size:12px;color:var(--ink-soft);font-weight:400;letter-spacing:0;text-transform:none}
+  .hint.center{text-align:center}
+  code{background:#f0ece3;padding:1px 4px;border-radius:4px;font-size:12px}
+
+  details{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fbf9f5}
+  details[open]{padding-bottom:14px}
+  summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-soft)}
+  details>*{margin-top:10px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+  button.primary{margin-top:6px;padding:13px;font:inherit;font-weight:700;letter-spacing:.04em;
+        color:#fff;background:var(--rust);border:0;border-radius:10px;cursor:pointer}
+  button.primary:hover{background:var(--rust-dark)}
+  button.ghost{margin-top:8px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer;
+        background:#fff;border:1px solid var(--line);border-radius:8px;color:var(--ink-soft)}
+
+  .stage{display:flex;align-items:flex-start;justify-content:center;padding:28px}
+  canvas{max-width:100%;max-height:calc(100vh - 56px);height:auto;
+         box-shadow:0 10px 34px rgba(40,34,30,.18);border-radius:4px;background:var(--cream)}
+
+  @media (prefers-color-scheme: dark){
+    :root{--panel:#1d1b19;--page:#141312;--line:#33302c;--ink:#efe9df;--ink-soft:#a49a8e}
+    input[type=text],input:not([type]),textarea{background:#252220;color:var(--ink)}
+    .fmt-btn{background:#252220}
+    .drop,details{background:#232120}
+    button.ghost{background:#252220}
+    code{background:#312d29}
+  }
+  :root[data-theme="dark"]{--panel:#1d1b19;--page:#141312;--line:#33302c;--ink:#efe9df;--ink-soft:#a49a8e}
+  :root[data-theme="light"]{--panel:#ffffff;--page:#efece4;--line:#e2dbcd;--ink:#28221e;--ink-soft:#6e645c}
+</style>
+
+<script>
+const LOGO_PROJECT = "data:image/png;base64,__PROJECT_B64__";
+const LOGO_SPONSOR = "data:image/png;base64,__SPONSOR_B64__";
+
+const CREAM="#f0ebe0", CREAM_DK="#e4ddce", RUST="#9a3324", RUST_DARK="#76261a",
+      INK="#28221e", INK_SOFT="#6e645c", WHITE="#fcfaf6", SEAM="#c68070";
+const FB = w => `700 ${w}px Arial, Helvetica, sans-serif`;
+const FR = w => `400 ${w}px Arial, Helvetica, sans-serif`;
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let fmt = 'story';
+let photo = null;
+const logoP = new Image(), logoS = new Image();
+let ready = 0;
+const onReady = () => { if (++ready === 2) render(); };
+logoP.onload = onReady; logoS.onload = onReady;
+logoP.src = LOGO_PROJECT; logoS.src = LOGO_SPONSOR;
+
+/* ---------- helpers ---------- */
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function wrap(text, font, maxW) {
+  ctx.font = font;
+  const out = [];
+  for (const para of String(text).split('\n')) {
+    let cur = '';
+    for (const word of para.split(/\s+/).filter(Boolean)) {
+      const t = cur ? cur + ' ' + word : word;
+      if (ctx.measureText(t).width <= maxW) cur = t;
+      else { if (cur) out.push(cur); cur = word; }
+    }
+    out.push(cur);
+  }
+  return out.filter(l => l !== '' || out.length === 1);
+}
+function seam(cx, cy, R, a0, a1, stitch = 36, gap = 6, w = 6) {
+  ctx.strokeStyle = SEAM; ctx.lineWidth = w; ctx.lineCap = 'round';
+  for (let a = a0; a < a1; a += gap) {
+    const rad = a * Math.PI / 180;
+    const px = cx + R * Math.cos(rad), py = cy + R * Math.sin(rad);
+    const tx = -Math.sin(rad), ty = Math.cos(rad);
+    const nx = Math.cos(rad), ny = Math.sin(rad);
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(px + s * tx * stitch * 0.6, py + s * ty * stitch * 0.6);
+      ctx.lineTo(px + nx * stitch * 0.75, py + ny * stitch * 0.75);
+      ctx.stroke();
+    }
+  }
+}
+function stamp(text, cx, cy, size, pad, radius) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-2 * Math.PI / 180);
+  ctx.font = FB(size);
+  const w = ctx.measureText(text).width, h = size;
+  rr(-w / 2 - pad, -h * 0.62 - pad * 0.5, w + pad * 2, h * 1.24 + pad, radius);
+  ctx.fillStyle = RUST; ctx.fill();
+  ctx.strokeStyle = RUST_DARK; ctx.lineWidth = 5; ctx.stroke();
+  ctx.fillStyle = CREAM; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+function chip(text, cx, cy, size) {
+  ctx.font = FB(size);
+  const w = ctx.measureText(text).width, padX = 32, h = size * 2.1;
+  rr(cx - w / 2 - padX, cy - h / 2, w + padX * 2, h, h / 2);
+  ctx.fillStyle = INK; ctx.fill();
+  ctx.fillStyle = CREAM; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, cx, cy);
+}
+function drawPhoto(x, y, w, h, credit) {
+  ctx.save();
+  rr(x, y, w, h, 20); ctx.clip();
+  if (photo) {
+    const sc = Math.max(w / photo.width, h / photo.height);
+    const nw = photo.width * sc, nh = photo.height * sc;
+    ctx.drawImage(photo, x + (w - nw) / 2, y + (h - nh) * 0.4, nw, nh);
+  } else {
+    ctx.fillStyle = '#e1dacb'; ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#b4aa9b'; ctx.font = FB(46);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('FOTO', x + w / 2, y + h / 2);
+  }
+  ctx.restore();
+  rr(x, y, w, h, 20); ctx.strokeStyle = RUST; ctx.lineWidth = 4; ctx.stroke();
+  if (credit && photo) {
+    ctx.font = FR(18); ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,255,255,.94)';
+    ctx.fillText(credit, x + w - 16, y + h - 24);
+  }
+}
+function textCard(x, y, w, lines, font, lineH, padTop) {
+  const h = lines.length * lineH + padTop * 2 - lineH * 0.25;
+  rr(x, y, w, h, 20); ctx.fillStyle = WHITE; ctx.fill();
+  ctx.strokeStyle = '#cdc3b4'; ctx.lineWidth = 2; ctx.stroke();
+  rr(x, y, 22, h, 10); ctx.fillStyle = RUST; ctx.fill();
+  ctx.font = font; ctx.fillStyle = INK; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  lines.forEach((l, i) => ctx.fillText(l, x + 46, y + padTop + i * lineH));
+  return h;
+}
+function parseResults(raw) {
+  const secs = [];
+  for (const line of raw.split('\n')) {
+    const t = line.trim();
+    if (!t) continue;
+    if (t.startsWith('#')) secs.push({ label: t.slice(1).trim(), rows: [] });
+    else {
+      if (!secs.length) secs.push({ label: '', rows: [] });
+      const [a, b] = t.split('|');
+      secs[secs.length - 1].rows.push([(a || '').trim(), (b || '').trim()]);
+    }
+  }
+  return secs.filter(s => s.rows.length || s.label);
+}
+
+/* ---------- render ---------- */
+function render() {
+  const topic = document.getElementById('topic').value.trim();
+  const headline = document.getElementById('headline').value.trim();
+  const body = document.getElementById('body').value.trim();
+  const credit = document.getElementById('credit').value.trim();
+  const secs = parseResults(document.getElementById('results').value);
+  const hiLast = document.getElementById('hiLast').checked;
+  const prefix = document.getElementById('prefix').value;
+  const hlL = document.getElementById('hlLabel').value.trim();
+  const hlV = document.getElementById('hlValue').value.trim();
+  const showPartner = document.getElementById('showPartner').checked;
+
+  const story = fmt === 'story';
+  const W = 1080, H = story ? 1920 : 1350;
+  cv.width = W; cv.height = H;
+  document.getElementById('dims').textContent = `${W} × ${H} px`;
+
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, CREAM); g.addColorStop(1, CREAM_DK);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+  const R = story ? 640 : 600;
+  seam(W + 260, -240, R, 100, 168);
+  seam(-260, H + 240, R, 282, 350);
+
+  const bar = story ? 14 : 12;
+  ctx.fillStyle = RUST;
+  ctx.fillRect(0, 0, W, bar); ctx.fillRect(0, H - bar, W, bar);
+
+  let hy;
+  if (story) {
+    const lh = 150, lw = logoP.width * lh / logoP.height;
+    ctx.drawImage(logoP, (W - lw) / 2, 42, lw, lh);
+    stamp('AKTUALITA', W / 2, 280, 96, 34, 12);
+    if (topic) chip(topic, W / 2, 406, 28);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = RUST_DARK;
+    hy = topic ? 510 : 460;
+    for (const ln of wrap(headline, FB(52), W - 160)) {
+      ctx.font = FB(52); ctx.fillText(ln, W / 2, hy); hy += 64;
+    }
+  } else {
+    const lh = 140, lw = logoP.width * lh / logoP.height;
+    ctx.drawImage(logoP, 85, 40, lw, lh);
+    stamp('AKTUALITA', 545, 108, 62, 24, 10);
+    if (topic) {
+      ctx.font = FB(24);
+      const w = ctx.measureText(topic).width;
+      rr(W - 85 - w - 56, 178, w + 56, 54, 27);
+      ctx.fillStyle = INK; ctx.fill();
+      ctx.fillStyle = CREAM; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(topic, W - 85 - 28 - w / 2, 205);
+    }
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = RUST_DARK;
+    hy = 205;
+    for (const ln of wrap(headline, FB(46), W - 420)) {
+      ctx.font = FB(46); ctx.fillText(ln, 85, hy); hy += 56;
+    }
+  }
+
+  /* měřítka bloků pod titulkem */
+  const bodyFont = story ? FR(31) : FR(29);
+  const lineH = story ? 46 : 44;
+  const bodyLines = body ? wrap(body, bodyFont, W - 250) : [];
+  const bodyH = bodyLines.length ? bodyLines.length * lineH + 50 : 0;
+
+  let resH = 0;
+  if (secs.length) {
+    resH = 40;
+    for (const s of secs) resH += (s.label ? 42 : 0) + s.rows.length * 48;
+  }
+  const hlH = (hlL || hlV) ? 76 : 0;
+
+  const footerTop = showPartner ? (story ? H - 240 : H - 158) : (story ? H - 110 : H - 80);
+  const phTop = hy + (story ? 25 : 30);
+  const gaps = (bodyH ? 28 : 0) + (resH ? 26 : 0) + (hlH ? 20 : 0);
+  let phH = footerTop - phTop - gaps - bodyH - resH - hlH;
+  phH = Math.max(240, Math.min(story ? 640 : 640, phH));
+  const phBot = phTop + phH;
+  drawPhoto(80, phTop, W - 160, phH, credit);
+
+  let y = phBot;
+  if (bodyH) {
+    y += 28;
+    y += textCard(80, y, W - 160, bodyLines, bodyFont, lineH, 34);
+  }
+
+  if (resH) {
+    y += 26;
+    rr(80, y, W - 160, resH, 20); ctx.fillStyle = WHITE; ctx.fill();
+    ctx.strokeStyle = '#cdc3b4'; ctx.lineWidth = 2; ctx.stroke();
+    let ry = y + 28;
+    const lastSec = secs.length - 1;
+    secs.forEach((s, si) => {
+      if (s.label) {
+        ctx.font = FB(24); ctx.fillStyle = RUST;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText(s.label, 130, ry); ry += 42;
+      }
+      s.rows.forEach((row, ri) => {
+        const hot = hiLast && si === lastSec && ri === s.rows.length - 1;
+        if (hot) {
+          rr(110, ry - 22, W - 220, 48, 12); ctx.fillStyle = RUST; ctx.fill();
+          ctx.fillStyle = CREAM; ctx.font = FB(34);
+        } else {
+          ctx.fillStyle = INK; ctx.font = FR(32);
+        }
+        ctx.textAlign = 'left';
+        ctx.fillText(prefix + row[0], 130, ry);
+        ctx.textAlign = 'right';
+        ctx.font = FB(hot ? 34 : 34);
+        ctx.fillStyle = hot ? CREAM : RUST_DARK;
+        ctx.fillText(row[1], W - 135, ry);
+        ry += 48;
+      });
+    });
+    y += resH;
+  }
+
+  if (hlH) {
+    y += 20;
+    rr(80, y, W - 160, hlH, 16); ctx.fillStyle = RUST; ctx.fill();
+    ctx.fillStyle = CREAM; ctx.textBaseline = 'middle';
+    ctx.font = FB(30); ctx.textAlign = 'left';
+    ctx.fillText(hlL, 110, y + hlH / 2);
+    ctx.font = FB(40); ctx.textAlign = 'right';
+    ctx.fillText(hlV, W - 110, y + hlH / 2);
+  }
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (showPartner) {
+    ctx.font = FB(story ? 20 : 19); ctx.fillStyle = INK_SOFT;
+    ctx.fillText('PARTNER', W / 2, story ? H - 195 : H - 118);
+    const sh = story ? 66 : 56, sw = logoS.width * sh / logoS.height;
+    ctx.drawImage(logoS, (W - sw) / 2, story ? H - 175 : H - 100, sw, sh);
+  }
+  ctx.font = FR(story ? 26 : 23); ctx.fillStyle = INK_SOFT;
+  ctx.fillText('milujeme-baseball.cz  ·  #MilujemeBaseball  #BaseballCzechia',
+               W / 2, story ? H - 60 : H - 32);
+}
+
+/* ---------- UI ---------- */
+['topic','headline','body','credit','results','prefix','hlLabel','hlValue']
+  .forEach(id => document.getElementById(id).addEventListener('input', render));
+['hiLast','showPartner'].forEach(id =>
+  document.getElementById(id).addEventListener('change', render));
+
+document.querySelectorAll('.fmt-btn').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.fmt-btn').forEach(x => x.classList.remove('active'));
+  b.classList.add('active'); fmt = b.dataset.fmt; render();
+}));
+
+const drop = document.getElementById('drop'), file = document.getElementById('file');
+function loadFile(f) {
+  if (!f || !f.type.startsWith('image/')) return;
+  const fr = new FileReader();
+  fr.onload = e => { const im = new Image(); im.onload = () => { photo = im; render(); }; im.src = e.target.result; };
+  fr.readAsDataURL(f);
+}
+drop.addEventListener('click', e => { if (e.target.id !== 'clearPhoto') file.click(); });
+file.addEventListener('change', e => loadFile(e.target.files[0]));
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('over'); loadFile(e.dataTransfer.files[0]);
+});
+document.getElementById('clearPhoto').addEventListener('click', e => {
+  e.stopPropagation(); photo = null; file.value = ''; render();
+});
+window.addEventListener('paste', e => {
+  for (const it of e.clipboardData.files) { loadFile(it); break; }
+});
+
+document.getElementById('download').addEventListener('click', () => {
+  const slug = (document.getElementById('headline').value.trim() || 'aktualita')
+    .toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48);
+  cv.toBlob(b => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = `${slug}-${fmt}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }, 'image/png');
+});
+</script>
