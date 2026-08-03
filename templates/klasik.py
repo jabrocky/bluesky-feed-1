@@ -1,22 +1,17 @@
 #!/usr/bin/env python3
 """Zápasové grafiky mládeže — Baseball Klasik Frýdek-Místek.
 
-Barvy vychází přímo z klubového loga (bizon s pálkou):
-vínová, klubová červená, písková a krémová.
+Navazuje na zavedený vizuál klubových příspěvků:
+fotka na celou plochu, logo vlevo nahoře, krátký kicker, červená linka,
+velký kondenzovaný titulek verzálkami a adresa webu dole.
 
 Varianty:
   • klasik_gameday(...)  — pozvánka na zápas
   • klasik_vysledek(...) — výsledek po zápase
   • klasik_rozpis(...)   — rozpis více zápasů
 
-Každá umí format="story" (1080×1920) nebo "post" (1080×1350).
-
-Příklad:
-    from klasik import klasik_gameday
-    klasik_gameday("U13", "Arrows Ostrava", "sobota 12. 7.", "10:00",
-                   "Frýdek-Místek", "gameday.png", home=True)
+Formáty: format="post" (1080×1350) nebo "story" (1080×1920).
 """
-import math
 import os
 
 from PIL import Image, ImageDraw, ImageFont
@@ -24,360 +19,266 @@ from PIL import Image, ImageDraw, ImageFont
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 LOGO = os.path.join(ASSETS, "logo_klasik.png")
 
-# ── paleta z loga ─────────────────────────────────────────────
-MAROON_DK = (34, 16, 16)      # pozadí nahoře
-MAROON = (87, 45, 45)         # pozadí dole / obrysy
-RED = (196, 52, 52)           # klubová červená
-RED_DK = (150, 36, 40)
-SAND = (249, 202, 125)        # písková (akcenty, popisky)
-CREAM = (247, 237, 209)       # hlavní světlý text
+RED = (214, 32, 39)
 WHITE = (255, 255, 255)
-MUTED = (168, 138, 128)
+SAND = (249, 202, 125)
+MAROON_DK = (32, 15, 15)
+MAROON = (74, 34, 34)
 
 F_BOLD = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
 F_REG = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
-F_BI = "/usr/share/fonts/truetype/liberation/LiberationSans-BoldItalic.ttf"
 
-CLUB = "KLASIK FRÝDEK-MÍSTEK"
+WEB = "WWW.BK-KLASIK.CZ"
+COND = 0.84          # míra stlačení písma (simulace condensed řezu)
 
 
 def font(path, size):
     return ImageFont.truetype(path, size)
 
 
-def wrap(d, text, fnt, max_w):
+def _measure(d, text, size, cond=COND, path=F_BOLD):
+    return d.textlength(text, font=font(path, size)) * cond
+
+
+def _cond_text(img, text, cx, cy, size, fill, cond=COND, path=F_BOLD, track=0):
+    """Vykreslí stlačený (condensed) text vystředěný na (cx, cy)."""
+    f = font(path, size)
+    tmp_d = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    if track:
+        text = (" " * 0).join(text)  # ponecháno kvůli čitelnosti volání
+    w = int(tmp_d.textlength(text, font=f)) + size
+    h = int(size * 1.8)
+    tmp = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(tmp).text((w / 2, h / 2), text, font=f, fill=fill, anchor="mm")
+    nw = max(1, int(w * cond))
+    tmp = tmp.resize((nw, h), Image.LANCZOS)
+    img.paste(tmp, (int(cx - nw / 2), int(cy - h / 2)), tmp)
+
+
+def _tracked_text(d, text, cx, cy, size, fill, spacing=6, path=F_BOLD):
+    """Text s rozpalem (letter-spacing), vystředěný."""
+    f = font(path, size)
+    widths = [d.textlength(ch, font=f) for ch in text]
+    total = sum(widths) + spacing * (len(text) - 1)
+    x = cx - total / 2
+    for ch, w in zip(text, widths):
+        d.text((x, cy), ch, font=f, fill=fill, anchor="lm")
+        x += w + spacing
+
+
+def _tracked_left(d, text, x, cy, size, fill, spacing=6, path=F_BOLD):
+    """Text s rozpalem zarovnaný doleva od x."""
+    f = font(path, size)
+    for ch in text:
+        d.text((x, cy), ch, font=f, fill=fill, anchor="lm")
+        x += d.textlength(ch, font=f) + spacing
+
+
+def _wrap_cond(d, text, size, max_w, cond=COND):
     words, lines, cur = text.split(), [], ""
     for w in words:
         t = (cur + " " + w).strip()
-        if d.textlength(t, font=fnt) <= max_w:
+        if _measure(d, t, size, cond) <= max_w:
             cur = t
         else:
-            lines.append(cur)
+            if cur:
+                lines.append(cur)
             cur = w
     if cur:
         lines.append(cur)
     return lines
 
 
-def fit(d, text, path, size, max_w, min_size=24):
-    """Zmenší písmo, dokud se text nevejde do max_w."""
-    f = font(path, size)
-    while d.textlength(text, font=f) > max_w and size > min_size:
+def _fit_cond(d, text, size, max_w, cond=COND, min_size=28):
+    while _measure(d, text, size, cond) > max_w and size > min_size:
         size -= 2
-        f = font(path, size)
-    return f
+    return size
 
 
-def _stripes(img, W, H):
-    """Jemné diagonální pruhy v klubové červené."""
-    ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    od = ImageDraw.Draw(ov)
-    step, w = 86, 26
-    for i in range(-H, W + H, step):
-        od.line([(i, H), (i + H, 0)], fill=RED + (26,), width=w)
-    img.paste(Image.alpha_composite(img.convert("RGBA"), ov).convert("RGB"), (0, 0))
-
-
-def _ball(d, cx, cy, r, col):
-    """Obrys míčku se švy."""
-    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=col, width=5)
-    d.arc([cx - r + r * 0.42, cy - r - r * 0.5, cx + r + r * 1.1, cy + r + r * 0.5],
-          150, 210, fill=col, width=5)
-    d.arc([cx - r - r * 1.1, cy - r - r * 0.5, cx + r - r * 0.42, cy + r + r * 0.5],
-          330, 30, fill=col, width=5)
-
-
-def _base(W, H):
+def _canvas(W, H, photo):
+    """Fotka na celou plochu (cover) nebo klubový gradient jako záloha."""
     img = Image.new("RGB", (W, H), MAROON_DK)
-    d = ImageDraw.Draw(img)
-    for y in range(H):
-        t = (y / H) ** 0.85
-        c = tuple(int(MAROON_DK[i] + (MAROON[i] - MAROON_DK[i]) * t) for i in range(3))
-        d.line([(0, y), (W, y)], fill=c)
-    _stripes(img, W, H)
-    d = ImageDraw.Draw(img)
-    _ball(d, W + 120, H - 150, 320, (255, 255, 255, 255) and (110, 62, 58))
-    bar = 14 if H > 1500 else 12
-    d.rectangle([0, 0, W, bar], fill=RED)
-    d.rectangle([0, H - bar, W, H], fill=SAND)
-    d.rectangle([0, H - bar - 6, W, H - bar], fill=RED)
-    return img, d
+    if photo:
+        p = Image.open(photo).convert("RGB")
+        sc = max(W / p.size[0], H / p.size[1])
+        nw, nh = int(p.size[0] * sc) + 1, int(p.size[1] * sc) + 1
+        rs = p.resize((nw, nh), Image.LANCZOS)
+        img.paste(rs, (-(nw - W) // 2, -int((nh - H) * 0.35)))
+    else:
+        d = ImageDraw.Draw(img)
+        for y in range(H):
+            t = (y / H) ** 0.9
+            c = tuple(int(MAROON_DK[i] + (MAROON[i] - MAROON_DK[i]) * t)
+                      for i in range(3))
+            d.line([(0, y), (W, y)], fill=c)
+    return img
 
 
-def _logo(img, W, cy, h):
+def _scrim(img, W, H, start=0.40, strength=232):
+    """Tmavý přechod odspodu, aby text držel kontrast."""
+    top = int(H * start)
+    ov = Image.new("RGBA", (W, H - top), (0, 0, 0, 0))
+    od = ImageDraw.Draw(ov)
+    n = H - top
+    for i in range(n):
+        a = int(strength * (i / n) ** 1.5)
+        od.line([(0, i), (W, i)], fill=(0, 0, 0, a))
+    img.paste(Image.alpha_composite(
+        img.crop((0, top, W, H)).convert("RGBA"), ov).convert("RGB"), (0, top))
+    # jemné ztmavení nahoře pod logem
+    ov2 = Image.new("RGBA", (W, 260), (0, 0, 0, 0))
+    od2 = ImageDraw.Draw(ov2)
+    for i in range(260):
+        od2.line([(0, i), (W, i)], fill=(0, 0, 0, int(120 * (1 - i / 260))))
+    img.paste(Image.alpha_composite(
+        img.crop((0, 0, W, 260)).convert("RGBA"), ov2).convert("RGB"), (0, 0))
+
+
+def _logo_tl(img, width, x=40, y=28):
     lg = Image.open(LOGO).convert("RGBA")
-    s = h / lg.size[1]
-    lg = lg.resize((int(lg.size[0] * s), h), Image.LANCZOS)
-    img.paste(lg, ((W - lg.size[0]) // 2, cy), lg)
-    return lg.size[1]
+    s = width / lg.size[0]
+    lg = lg.resize((width, int(lg.size[1] * s)), Image.LANCZOS)
+    img.paste(lg, (x, y), lg)
 
 
-def _chip(d, text, cx, cy, size, fill=RED, fg=CREAM):
-    f = font(F_BOLD, size)
-    w = d.textlength(text, font=f) + 66
-    h = size * 2.1
-    d.rounded_rectangle([cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2],
-                        radius=h / 2, fill=fill)
-    d.text((cx, cy), text, font=f, fill=fg, anchor="mm")
-    return w
+def _bottom_block(img, d, W, H, kicker, headline_lines, hsize,
+                  extra=None, extra_size=0, score=None, score_size=0):
+    """Skládá obsah odspodu: web → info → titulek → linka → kicker."""
+    story = H > 1500
+    web_y = H - (58 if story else 48)
+    _tracked_text(d, WEB, W / 2, web_y, 21 if story else 19, WHITE, spacing=5)
 
+    y = web_y - (56 if story else 46)
 
-def _footer(d, W, H, story, note=None):
-    y = H - (86 if story else 62)
-    d.text((W // 2, y), CLUB, font=font(F_BOLD, 28 if story else 24),
-           fill=SAND, anchor="mm")
-    if note:
-        d.text((W // 2, y + (44 if story else 36)), note,
-               font=font(F_REG, 24 if story else 21), fill=MUTED, anchor="mm")
+    if extra:
+        _tracked_text(d, extra, W / 2, y - extra_size * 0.5, extra_size,
+                      (232, 226, 218), spacing=3)
+        y -= extra_size + (34 if story else 28)
 
+    line_gap = int(hsize * 1.02)
+    for ln in reversed(headline_lines):
+        _cond_text(img, ln, W / 2, y - hsize * 0.5, hsize, WHITE)
+        y -= line_gap
 
-def _teams(img, d, W, y, home_name, away_name, size=54, opponent_logo=None):
-    """Dva týmy pod sebou s VS mezi nimi. Klasik je vždy zvýrazněný."""
-    rows = [(home_name, home_name.upper().startswith("KLASIK")),
-            (away_name, away_name.upper().startswith("KLASIK"))]
-    for i, (name, is_club) in enumerate(rows):
-        ry = y + i * (size + 78)
-        f = fit(d, name, F_BOLD, size, W - 260)
-        d.text((W // 2, ry), name, font=f,
-               fill=CREAM if is_club else WHITE, anchor="mm")
-        if is_club:
-            tw = d.textlength(name, font=f)
-            d.line([(W / 2 - tw / 2, ry + size * 0.62),
-                    (W / 2 + tw / 2, ry + size * 0.62)], fill=SAND, width=5)
-        if i == 0:
-            my = ry + (size + 78) / 2
-            d.line([(W / 2 - 190, my), (W / 2 - 46, my)], fill=(120, 70, 66), width=3)
-            d.line([(W / 2 + 46, my), (W / 2 + 190, my)], fill=(120, 70, 66), width=3)
-            d.text((W // 2, my), "VS", font=font(F_BOLD, 40), fill=RED, anchor="mm")
-    return y + 2 * size + 78
+    if score:
+        y -= (10 if story else 6)
+        _cond_text(img, score, W / 2, y - score_size * 0.52, score_size, SAND, cond=0.80)
+        y -= int(score_size * 1.02)
 
+    y -= (26 if story else 20)
+    d.rectangle([64, y - 2, W - 64, y + 2], fill=RED)
 
-def _info_row(d, W, y, items, story):
-    """Popisek + hodnota ve sloupcích."""
-    n = len(items)
-    col = W / n
-    lf = font(F_BOLD, 22 if story else 20)
-    vf = font(F_BOLD, 40 if story else 34)
-    for i, (label, value) in enumerate(items):
-        cx = col * (i + 0.5)
-        d.text((cx, y), label, font=lf, fill=SAND, anchor="mm")
-        f = fit(d, value, F_BOLD, vf.size, col - 40, min_size=20)
-        d.text((cx, y + (46 if story else 40)), value, font=f, fill=CREAM, anchor="mm")
-        if i < n - 1:
-            d.line([(col * (i + 1), y - 18), (col * (i + 1), y + (66 if story else 58))],
-                   fill=(120, 70, 66), width=2)
+    y -= (34 if story else 28)
+    ks = 30 if story else 26
+    _tracked_text(d, kicker, W / 2, y - ks / 2, ks, WHITE, spacing=7)
 
-
-
-def _distribute(top, bottom, heights):
-    """Rozloží bloky mezi top a bottom se stejnými mezerami."""
-    gap = (bottom - top - sum(heights)) / (len(heights) + 1)
-    ys, y = [], top + gap
-    for h in heights:
-        ys.append(y)
-        y += h + gap
-    return ys
-
-
-def _photo_panel(img, d, box, path):
-    x1, y1, x2, y2 = [int(v) for v in box]
-    bw, bh = x2 - x1, y2 - y1
-    p = Image.open(path).convert("RGB")
-    sc = max(bw / p.size[0], bh / p.size[1])
-    nw, nh = int(p.size[0] * sc) + 1, int(p.size[1] * sc) + 1
-    rs = p.resize((nw, nh), Image.LANCZOS)
-    cx, cy = (nw - bw) // 2, int((nh - bh) * 0.35)
-    crop = rs.crop((cx, cy, cx + bw, cy + bh))
-    mask = Image.new("L", (bw, bh), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, bw - 1, bh - 1], radius=22, fill=255)
-    img.paste(crop, (x1, y1), mask)
-    d.rounded_rectangle([x1, y1, x2, y2], radius=22, outline=RED, width=4)
-
-
-def _cta_bar(d, W, y, h, text):
-    d.rounded_rectangle([70, y, W - 70, y + h], radius=h / 2, fill=RED)
-    f = font(F_BOLD, int(h * 0.42))
-    d.text((W // 2, y + h / 2), text, font=f, fill=CREAM, anchor="mm")
 
 # ───────────────────────────── GAMEDAY ─────────────────────────────
 def klasik_gameday(kategorie, souper, datum, cas, misto, out,
-                   format="story", home=True, note=None, photo=None,
-                   cta="PŘIJĎ FANDIT!"):
+                   format="post", home=True, photo=None, titulek=None):
     story = format == "story"
     W, H = (1080, 1920) if story else (1080, 1350)
-    img, d = _base(W, H)
-
-    lh = 290 if story else 200
-    top_pad = 50 if story else 34
-    _logo(img, W, top_pad, lh)
+    img = _canvas(W, H, photo)
+    _scrim(img, W, H, 0.38 if story else 0.34)
+    _logo_tl(img, 210 if story else 190)
     d = ImageDraw.Draw(img)
 
-    chip_h = 66 if story else 56
-    title_size = 128 if story else 96
-    title_h = title_size + 40
-    name_size = 66 if story else 52
-    teams_h = name_size * 2 + (86 if story else 68)
-    info_h = 90 if story else 78
-    cta_h = 96 if story else 80
-    photo_h = (540 if story else 300) if photo else 0
+    home_name = "KLASIK" if home else souper.upper()
+    away_name = souper.upper() if home else "KLASIK"
+    head = titulek or f"{home_name} – {away_name}"
 
-    heights = [chip_h, title_h, teams_h]
-    if photo:
-        heights.append(photo_h)
-    heights += [info_h]
-    if cta:
-        heights.append(cta_h)
+    hsize = 92 if story else 78
+    lines = _wrap_cond(d, head.upper(), hsize, W - 120)
+    if len(lines) > 2:
+        hsize = _fit_cond(d, max(lines, key=len), hsize, W - 120)
+        lines = _wrap_cond(d, head.upper(), hsize, W - 120)
 
-    ys = _distribute(top_pad + lh + (16 if story else 8), H - (150 if story else 108),
-                     heights)
-    i = 0
-    _chip(d, kategorie.upper(), W // 2, ys[i] + chip_h / 2, 30 if story else 26); i += 1
-
-    ty = ys[i] + title_size / 2
-    d.text((W // 2, ty), "GAMEDAY", font=font(F_BOLD, title_size), fill=CREAM, anchor="mm")
-    d.line([(W / 2 - 200, ty + title_size * 0.66), (W / 2 + 200, ty + title_size * 0.66)],
-           fill=RED, width=6)
-    i += 1
-
-    home_name = "KLASIK FM" if home else souper.upper()
-    away_name = souper.upper() if home else "KLASIK FM"
-    _teams(img, d, W, ys[i] + name_size / 2, home_name, away_name, name_size); i += 1
-
-    if photo:
-        _photo_panel(img, d, (70, ys[i], W - 70, ys[i] + photo_h), photo); i += 1
-
-    _info_row(d, W, ys[i] + 20, [("DATUM", datum), ("ZAČÁTEK", cas), ("HŘIŠTĚ", misto)],
-              story); i += 1
-
-    if cta:
-        _cta_bar(d, W, ys[i], cta_h, cta)
-
-    _footer(d, W, H, story, note)
+    info = "  ·  ".join(x for x in (datum, cas, misto) if x).upper()
+    _bottom_block(img, d, W, H, f"{kategorie.upper()}  ·  GAMEDAY", lines, hsize,
+                  extra=info, extra_size=26 if story else 23)
     img.save(out)
     return out
 
 
 # ───────────────────────────── VÝSLEDEK ─────────────────────────────
 def klasik_vysledek(kategorie, souper, skore_klasik, skore_souper, out,
-                    format="story", home=True, datum=None, misto=None, note=None,
-                    photo=None, sestava=None):
-    """sestava: volitelný seznam řádků (např. nejlepší hráči zápasu)."""
+                    format="post", home=True, photo=None, datum=None, misto=None,
+                    poznamka=None):
     story = format == "story"
     W, H = (1080, 1920) if story else (1080, 1350)
-    img, d = _base(W, H)
-
-    lh = 260 if story else 185
-    top_pad = 46 if story else 32
-    _logo(img, W, top_pad, lh)
+    img = _canvas(W, H, photo)
+    _scrim(img, W, H, 0.34 if story else 0.30)
+    _logo_tl(img, 210 if story else 190)
     d = ImageDraw.Draw(img)
 
+    home_name = "KLASIK" if home else souper.upper()
+    away_name = souper.upper() if home else "KLASIK"
+    left = skore_klasik if home else skore_souper
+    right = skore_souper if home else skore_klasik
+
+    hsize = 72 if story else 62
+    lines = _wrap_cond(d, f"{home_name} – {away_name}", hsize, W - 120)
+    if len(lines) > 2:
+        hsize = _fit_cond(d, max(lines, key=len), hsize, W - 120)
+        lines = _wrap_cond(d, f"{home_name} – {away_name}", hsize, W - 120)
+
     if skore_klasik > skore_souper:
-        verdict, vcol = "VÝHRA", SAND
+        verdict = "VÝHRA"
     elif skore_klasik == skore_souper:
-        verdict, vcol = "REMÍZA", CREAM
+        verdict = "REMÍZA"
     else:
-        verdict, vcol = "PROHRA", MUTED
+        verdict = "PROHRA"
 
-    chip_h = 66 if story else 56
-    vsize = 96 if story else 74
-    v_h = vsize + 16
-    card_h = 260 if story else 205
-    info_h = 90 if story else 78
-    photo_h = (470 if story else 280) if photo else 0
-    lines = list(sestava or [])
-    list_h = (len(lines) * (54 if story else 46) + 40) if lines else 0
-
-    heights = [chip_h, v_h, card_h]
-    if photo:
-        heights.append(photo_h)
-    if lines:
-        heights.append(list_h)
-    if datum or misto:
-        heights.append(info_h)
-
-    ys = _distribute(top_pad + lh + (14 if story else 6), H - (150 if story else 108),
-                     heights)
-    i = 0
-    _chip(d, kategorie.upper(), W // 2, ys[i] + chip_h / 2, 30 if story else 26); i += 1
-    d.text((W // 2, ys[i] + vsize / 2), verdict, font=font(F_BOLD, vsize),
-           fill=vcol, anchor="mm"); i += 1
-
-    cy_top = ys[i]
-    d.rounded_rectangle([70, cy_top, W - 70, cy_top + card_h], radius=26,
-                        fill=(52, 24, 24), outline=RED, width=4)
-    left_name = "KLASIK FM" if home else souper.upper()
-    right_name = souper.upper() if home else "KLASIK FM"
-    left_score = skore_klasik if home else skore_souper
-    right_score = skore_souper if home else skore_klasik
-    nsize = 32 if story else 27
-    ssize = 112 if story else 90
-    mid = cy_top + card_h / 2
-    for cx, name, score, is_club in (
-            (W * 0.28, left_name, left_score, left_name.startswith("KLASIK")),
-            (W * 0.72, right_name, right_score, right_name.startswith("KLASIK"))):
-        f = fit(d, name, F_BOLD, nsize, W * 0.40, min_size=18)
-        d.text((cx, mid - (74 if story else 60)), name, font=f,
-               fill=SAND if is_club else MUTED, anchor="mm")
-        d.text((cx, mid + (26 if story else 20)), str(score), font=font(F_BOLD, ssize),
-               fill=CREAM if is_club else WHITE, anchor="mm")
-    d.text((W // 2, mid + (14 if story else 10)), ":", font=font(F_BOLD, ssize),
-           fill=RED, anchor="mm")
-    i += 1
-
-    if photo:
-        _photo_panel(img, d, (70, ys[i], W - 70, ys[i] + photo_h), photo); i += 1
-
-    if lines:
-        lh2 = 54 if story else 46
-        d.rounded_rectangle([70, ys[i], W - 70, ys[i] + list_h], radius=20,
-                            fill=(52, 24, 24), outline=(120, 70, 66), width=2)
-        ly = ys[i] + 20 + lh2 / 2
-        for ln in lines:
-            d.text((W // 2, ly), ln, font=font(F_REG, 30 if story else 26),
-                   fill=CREAM, anchor="mm")
-            ly += lh2
-        i += 1
-
-    if datum or misto:
-        info = [x for x in (("DATUM", datum) if datum else None,
-                            ("HŘIŠTĚ", misto) if misto else None) if x]
-        _info_row(d, W, ys[i] + 20, info, story)
-
-    _footer(d, W, H, story, note or "Díky za podporu!")
+    info = poznamka or "  ·  ".join(x for x in (datum, misto) if x).upper()
+    _bottom_block(img, d, W, H, f"{kategorie.upper()}  ·  {verdict}", lines, hsize,
+                  extra=info or None, extra_size=26 if story else 23,
+                  score=f"{left} : {right}", score_size=150 if story else 126)
     img.save(out)
     return out
 
 
 # ───────────────────────────── ROZPIS ─────────────────────────────
-def klasik_rozpis(nadpis, zapasy, out, format="story", note=None):
-    """zapasy: list (datum, cas, popis) — např. ("12. 7.", "10:00", "Klasik – Arrows")"""
+def klasik_rozpis(nadpis, zapasy, out, format="post", photo=None):
+    """zapasy: list (datum_cas, popis) — např. ("SO 12. 7. · 10:00", "U11 Klasik – Hroši")"""
     story = format == "story"
     W, H = (1080, 1920) if story else (1080, 1350)
-    img, d = _base(W, H)
-
-    lh = 230 if story else 175
-    _logo(img, W, 50 if story else 34, lh)
+    img = _canvas(W, H, photo)
+    _scrim(img, W, H, 0.10, strength=246)
+    _logo_tl(img, 210 if story else 190)
     d = ImageDraw.Draw(img)
 
-    y = (50 if story else 34) + lh + (34 if story else 22)
-    f = fit(d, nadpis.upper(), F_BOLD, 68 if story else 54, W - 160)
-    d.text((W // 2, y), nadpis.upper(), font=f, fill=CREAM, anchor="mm")
-    d.line([(W / 2 - 180, y + 56), (W / 2 + 180, y + 56)], fill=RED, width=5)
+    web_y = H - (58 if story else 48)
+    _tracked_text(d, WEB, W / 2, web_y, 21 if story else 19, WHITE, spacing=5)
 
-    y += (110 if story else 92)
-    row_h = 128 if story else 100
-    for datum, cas, popis in zapasy:
-        d.rounded_rectangle([70, y, W - 70, y + row_h - 16], radius=18,
-                            fill=(52, 24, 24), outline=(120, 70, 66), width=2)
-        cy = y + (row_h - 16) / 2
-        d.text((110, cy - 18), datum, font=font(F_BOLD, 34 if story else 29),
-               fill=SAND, anchor="lm")
-        d.text((110, cy + 22), cas, font=font(F_REG, 28 if story else 24),
-               fill=MUTED, anchor="lm")
-        pf = fit(d, popis, F_BOLD, 38 if story else 32, W - 480)
-        d.text((330, cy), popis, font=pf, fill=CREAM, anchor="lm")
-        y += row_h
+    ky = 300 if story else 252
+    _tracked_text(d, "ROZPIS ZÁPASŮ", W / 2, ky, 30 if story else 26, WHITE, spacing=7)
 
-    _footer(d, W, H, story, note)
+    hsize = _fit_cond(d, nadpis.upper(), 84 if story else 70, W - 140)
+    hcy = ky + (52 if story else 46) + hsize * 0.5
+    _cond_text(img, nadpis.upper(), W / 2, hcy, hsize, WHITE)
+
+    ly = hcy + hsize * 0.72 + (40 if story else 34)
+    d.rectangle([64, ly - 2, W - 64, ly + 2], fill=RED)
+
+    row_h = 136 if story else 112
+    gap = 18
+    block_h = len(zapasy) * row_h + (len(zapasy) - 1) * gap
+    space_top = ly + (56 if story else 46)
+    space_bot = web_y - (60 if story else 48)
+    y = space_top + max(0, (space_bot - space_top - block_h) / 2)
+
+    r = 16
+    for when, what in zapasy:
+        d.rounded_rectangle([64, y, W - 64, y + row_h], radius=r, fill=(20, 13, 13))
+        d.rounded_rectangle([64, y, 64 + 2 * r + 12, y + row_h], radius=r, fill=RED)
+        d.rectangle([64 + 14, y, W - 64, y + row_h], fill=(20, 13, 13))
+        cy = y + row_h / 2
+        _tracked_left(d, when.upper(), 108, cy - (24 if story else 20),
+                      24 if story else 21, SAND, spacing=3)
+        ws = _fit_cond(d, what.upper(), 42 if story else 36, W - 300)
+        _cond_text(img, what.upper(), 120 + (W - 184 - 56) / 2 - 20,
+                   cy + (22 if story else 19), ws, WHITE)
+        y += row_h + gap
+
     img.save(out)
     return out
