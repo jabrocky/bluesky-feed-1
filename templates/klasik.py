@@ -114,8 +114,11 @@ def _canvas(W, H, photo):
     return img
 
 
-def _scrim(img, W, H, start=0.40, strength=232):
+def _scrim(img, W, H, start=0.40, strength=232, veil=0):
     """Tmavý přechod odspodu, aby text držel kontrast."""
+    if veil:
+        v = Image.new("RGBA", (W, H), (0, 0, 0, int(255 * veil)))
+        img.paste(Image.alpha_composite(img.convert("RGBA"), v).convert("RGB"), (0, 0))
     top = int(H * start)
     ov = Image.new("RGBA", (W, H - top), (0, 0, 0, 0))
     od = ImageDraw.Draw(ov)
@@ -243,7 +246,7 @@ def klasik_rozpis(nadpis, zapasy, out, format="post", photo=None):
     story = format == "story"
     W, H = (1080, 1920) if story else (1080, 1350)
     img = _canvas(W, H, photo)
-    _scrim(img, W, H, 0.10, strength=246)
+    _scrim(img, W, H, 0.30, strength=246, veil=0.55)
     _logo_tl(img, 210 if story else 190)
     d = ImageDraw.Draw(img)
 

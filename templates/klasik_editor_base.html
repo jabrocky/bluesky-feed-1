@@ -1,0 +1,422 @@
+<div class="app">
+  <aside class="panel">
+    <h1>ZÁPASOVÉ GRAFIKY<span>Baseball Klasik Frýdek-Místek</span></h1>
+
+    <div class="seg" id="variant">
+      <button class="seg-btn active" data-var="gameday">Gameday</button>
+      <button class="seg-btn" data-var="vysledek">Výsledek</button>
+      <button class="seg-btn" data-var="rozpis">Rozpis</button>
+    </div>
+
+    <div class="seg" id="format">
+      <button class="seg-btn active" data-fmt="post">Příspěvek 4:5</button>
+      <button class="seg-btn" data-fmt="story">Story 9:16</button>
+    </div>
+
+    <div class="drop" id="drop">
+      <input type="file" id="file" accept="image/*" hidden>
+      <p><strong>Fotka na pozadí</strong></p>
+      <p class="hint">Přetáhni sem, klikni, nebo vlož přes Ctrl+V</p>
+      <button type="button" class="ghost" id="clearPhoto">Odebrat</button>
+    </div>
+
+    <label>Výřez fotky <span class="hint">nahoru / dolů</span>
+      <input type="range" id="focus" min="0" max="100" value="35">
+    </label>
+
+    <div class="grp" data-for="gameday vysledek">
+      <div class="two">
+        <label>Kategorie
+          <input id="kategorie" value="U13" maxlength="14" list="katPresets">
+        </label>
+        <label>Soupeř
+          <input id="souper" value="Arrows Ostrava" maxlength="40">
+        </label>
+      </div>
+      <datalist id="katPresets">
+        <option value="U9"><option value="U11"><option value="U13">
+        <option value="U15"><option value="U18"><option value="MUŽI">
+      </datalist>
+      <label class="row"><input type="checkbox" id="home" checked> Klasik je domácí (uvádí se první)</label>
+    </div>
+
+    <div class="grp" data-for="gameday">
+      <div class="two">
+        <label>Datum<input id="datum" value="sobota 12. 7."></label>
+        <label>Začátek<input id="cas" value="10:00"></label>
+      </div>
+      <label>Hřiště<input id="misto" value="Frýdek-Místek"></label>
+      <label>Vlastní titulek <span class="hint">nepovinné</span>
+        <input id="titulek" placeholder="např. DERBY O ČELO TABULKY">
+      </label>
+    </div>
+
+    <div class="grp" data-for="vysledek">
+      <div class="two">
+        <label>Skóre Klasik<input id="skoreK" type="number" value="12"></label>
+        <label>Skóre soupeř<input id="skoreS" type="number" value="4"></label>
+      </div>
+      <div class="two">
+        <label>Datum<input id="datumV" value="12. 7."></label>
+        <label>Hřiště<input id="mistoV" value="Frýdek-Místek"></label>
+      </div>
+      <label>Vlastní spodní řádek <span class="hint">nepovinné</span>
+        <input id="poznamka" placeholder="např. HRÁČ ZÁPASU: JAN NOVÁK">
+      </label>
+    </div>
+
+    <div class="grp" data-for="rozpis">
+      <label>Nadpis<input id="nadpis" value="Víkend 12.–13. července"></label>
+      <label>Zápasy <span class="hint">jeden na řádek: <code>kdy | co</code></span>
+        <textarea id="zapasy" rows="7">SO 12. 7. · 10:00 | U9 Klasik – Arrows
+SO 12. 7. · 13:30 | U11 Klasik – Hroši
+NE 13. 7. · 10:00 | U13 Draci – Klasik</textarea>
+      </label>
+    </div>
+
+    <button id="download" class="primary">Stáhnout PNG</button>
+    <p class="hint center" id="dims"></p>
+  </aside>
+
+  <main class="stage"><canvas id="cv"></canvas></main>
+</div>
+
+<style>
+  :root{
+    --red:#d62027; --maroon:#4a2222; --sand:#f9ca7d;
+    --panel:#ffffff; --line:#e3dcd6; --page:#f2efec; --ink:#241615; --ink-soft:#7a6863;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       color:var(--ink);background:var(--page)}
+  .app{display:grid;grid-template-columns:370px 1fr;min-height:100vh}
+  @media (max-width:900px){.app{grid-template-columns:1fr}}
+
+  .panel{background:var(--panel);border-right:1px solid var(--line);padding:22px 20px 40px;
+         display:flex;flex-direction:column;gap:13px;overflow-y:auto;max-height:100vh}
+  @media (max-width:900px){.panel{max-height:none;border-right:0;border-bottom:1px solid var(--line)}}
+  .panel h1{margin:0 0 2px;font-size:20px;letter-spacing:.03em;color:var(--red)}
+  .panel h1 span{display:block;font-size:11.5px;font-weight:400;letter-spacing:.1em;
+                 text-transform:uppercase;color:var(--ink-soft);margin-top:3px}
+
+  label{display:block;font-size:12px;font-weight:600;letter-spacing:.05em;
+        text-transform:uppercase;color:var(--ink-soft)}
+  label.row{display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;
+            font-weight:500;letter-spacing:0;color:var(--ink)}
+  input[type=text],input[type=number],input:not([type]),textarea{width:100%;margin-top:6px;
+        padding:9px 11px;font:inherit;color:var(--ink);background:#fff;
+        border:1px solid var(--line);border-radius:9px;resize:vertical}
+  input[type=range]{width:100%;margin-top:8px;accent-color:var(--red)}
+  textarea{line-height:1.45}
+  input:focus,textarea:focus{outline:2px solid rgba(214,32,39,.3);border-color:var(--red)}
+
+  .seg{display:flex;gap:7px}
+  .seg-btn{flex:1;padding:9px 4px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;
+           background:#fff;border:1px solid var(--line);border-radius:9px;color:var(--ink-soft)}
+  .seg-btn.active{background:var(--red);border-color:var(--red);color:#fff}
+
+  .grp{display:flex;flex-direction:column;gap:12px;padding:13px;border-radius:11px;
+       background:#faf7f5;border:1px solid var(--line)}
+  .grp[hidden]{display:none}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+  .drop{border:2px dashed var(--line);border-radius:12px;padding:15px;text-align:center;
+        cursor:pointer;background:#faf7f5;transition:.15s}
+  .drop.over{border-color:var(--red);background:#fcefef}
+  .drop p{margin:0}
+  .drop p+p{margin-top:4px}
+  .hint{font-size:12px;color:var(--ink-soft);font-weight:400;letter-spacing:0;text-transform:none}
+  .hint.center{text-align:center}
+  code{background:#eee7e3;padding:1px 4px;border-radius:4px;font-size:12px}
+
+  button.primary{margin-top:4px;padding:13px;font:inherit;font-weight:700;letter-spacing:.04em;
+        color:#fff;background:var(--red);border:0;border-radius:10px;cursor:pointer}
+  button.primary:hover{background:#b31a20}
+  button.ghost{margin-top:8px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer;
+        background:#fff;border:1px solid var(--line);border-radius:8px;color:var(--ink-soft)}
+
+  .stage{display:flex;align-items:flex-start;justify-content:center;padding:26px}
+  canvas{max-width:100%;max-height:calc(100vh - 52px);height:auto;
+         box-shadow:0 10px 34px rgba(36,22,21,.22);border-radius:4px;background:#241615}
+
+  @media (prefers-color-scheme: dark){
+    :root{--panel:#1c1615;--page:#131010;--line:#352b29;--ink:#f0e8e4;--ink-soft:#a89890}
+    input[type=text],input[type=number],input:not([type]),textarea{background:#251d1c;color:var(--ink)}
+    .seg-btn,button.ghost{background:#251d1c}
+    .drop,.grp{background:#221b1a}
+    code{background:#332a28}
+  }
+  :root[data-theme="dark"]{--panel:#1c1615;--page:#131010;--line:#352b29;--ink:#f0e8e4;--ink-soft:#a89890}
+  :root[data-theme="light"]{--panel:#ffffff;--page:#f2efec;--line:#e3dcd6;--ink:#241615;--ink-soft:#7a6863}
+</style>
+
+<script>
+const LOGO_SRC = "data:image/png;base64,__KLASIK_B64__";
+const RED = "#d62027", WHITE = "#ffffff", SAND = "#f9ca7d";
+const WEB = "WWW.BK-KLASIK.CZ";
+const COND = 0.84;
+const FB = s => `700 ${s}px Arial, Helvetica, sans-serif`;
+
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let variant = 'gameday', fmt = 'post', photo = null;
+const logo = new Image();
+logo.onload = render;
+logo.src = LOGO_SRC;
+
+/* ---------- text helpers ---------- */
+function measureCond(text, size, cond = COND) {
+  ctx.font = FB(size);
+  return ctx.measureText(text).width * cond;
+}
+function condText(text, cx, cy, size, fill, cond = COND) {
+  ctx.save();
+  ctx.font = FB(size);
+  ctx.fillStyle = fill;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.translate(cx, cy);
+  ctx.scale(cond, 1);
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+function trackedText(text, x, cy, size, fill, spacing, align = 'center') {
+  ctx.font = FB(size);
+  ctx.fillStyle = fill;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  const ws = [...text].map(ch => ctx.measureText(ch).width);
+  const total = ws.reduce((a, b) => a + b, 0) + spacing * (text.length - 1);
+  let cx = align === 'center' ? x - total / 2 : x;
+  [...text].forEach((ch, i) => { ctx.fillText(ch, cx, cy); cx += ws[i] + spacing; });
+  return total;
+}
+function wrapCond(text, size, maxW) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const out = [];
+  let cur = '';
+  for (const w of words) {
+    const t = cur ? cur + ' ' + w : w;
+    if (measureCond(t, size) <= maxW) cur = t;
+    else { if (cur) out.push(cur); cur = w; }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+function fitCond(text, size, maxW, min = 28) {
+  while (measureCond(text, size) > maxW && size > min) size -= 2;
+  return size;
+}
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/* ---------- background ---------- */
+function drawBackground(W, H, scrimStart, strength = 232, veil = 0) {
+  if (photo) {
+    const sc = Math.max(W / photo.width, H / photo.height);
+    const nw = photo.width * sc, nh = photo.height * sc;
+    const focus = +document.getElementById('focus').value / 100;
+    ctx.drawImage(photo, (W - nw) / 2, -(nh - H) * focus, nw, nh);
+  } else {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#200f0f'); g.addColorStop(1, '#4a2222');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+  if (veil) { ctx.fillStyle = `rgba(0,0,0,${veil})`; ctx.fillRect(0, 0, W, H); }
+  const top = H * scrimStart;
+  const g2 = ctx.createLinearGradient(0, top, 0, H);
+  g2.addColorStop(0, 'rgba(0,0,0,0)');
+  g2.addColorStop(0.55, `rgba(0,0,0,${strength / 255 * 0.45})`);
+  g2.addColorStop(1, `rgba(0,0,0,${strength / 255})`);
+  ctx.fillStyle = g2; ctx.fillRect(0, top, W, H - top);
+
+  const g3 = ctx.createLinearGradient(0, 0, 0, 260);
+  g3.addColorStop(0, 'rgba(0,0,0,0.47)');
+  g3.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g3; ctx.fillRect(0, 0, W, 260);
+
+  const lw = fmt === 'story' ? 210 : 190;
+  ctx.drawImage(logo, 40, 28, lw, logo.height * lw / logo.width);
+}
+
+/* ---------- bottom block ---------- */
+function bottomBlock(W, H, kicker, lines, hsize, extra, extraSize, score, scoreSize) {
+  const story = H > 1500;
+  const webY = H - (story ? 58 : 48);
+  trackedText(WEB, W / 2, webY, story ? 21 : 19, WHITE, 5);
+
+  let y = webY - (story ? 56 : 46);
+  if (extra) {
+    trackedText(extra, W / 2, y - extraSize * 0.5, extraSize, '#e8e2da', 3);
+    y -= extraSize + (story ? 34 : 28);
+  }
+  const gap = hsize * 1.02;
+  [...lines].reverse().forEach(ln => {
+    condText(ln, W / 2, y - hsize * 0.5, hsize, WHITE);
+    y -= gap;
+  });
+  if (score) {
+    y -= story ? 10 : 6;
+    condText(score, W / 2, y - scoreSize * 0.52, scoreSize, SAND, 0.80);
+    y -= scoreSize * 1.02;
+  }
+  y -= story ? 26 : 20;
+  ctx.fillStyle = RED; ctx.fillRect(64, y - 2, W - 128, 4);
+  y -= story ? 34 : 28;
+  const ks = story ? 30 : 26;
+  trackedText(kicker, W / 2, y - ks / 2, ks, WHITE, 7);
+}
+
+/* ---------- variants ---------- */
+function renderGameday(W, H) {
+  const story = H > 1500;
+  drawBackground(W, H, story ? 0.38 : 0.34);
+  const v = id => document.getElementById(id).value.trim();
+  const home = document.getElementById('home').checked;
+  const souper = v('souper').toUpperCase() || 'SOUPEŘ';
+  const head = (v('titulek') || (home ? `KLASIK – ${souper}` : `${souper} – KLASIK`)).toUpperCase();
+
+  let hsize = story ? 92 : 78;
+  let lines = wrapCond(head, hsize, W - 120);
+  if (lines.length > 2) {
+    hsize = fitCond(lines.reduce((a, b) => a.length > b.length ? a : b), hsize, W - 120);
+    lines = wrapCond(head, hsize, W - 120);
+  }
+  const info = [v('datum'), v('cas'), v('misto')].filter(Boolean).join('  ·  ').toUpperCase();
+  bottomBlock(W, H, `${v('kategorie').toUpperCase()}  ·  GAMEDAY`, lines, hsize,
+              info, story ? 26 : 23);
+}
+
+function renderVysledek(W, H) {
+  const story = H > 1500;
+  drawBackground(W, H, story ? 0.34 : 0.30);
+  const v = id => document.getElementById(id).value.trim();
+  const home = document.getElementById('home').checked;
+  const souper = v('souper').toUpperCase() || 'SOUPEŘ';
+  const sk = +v('skoreK') || 0, ss = +v('skoreS') || 0;
+  const head = (home ? `KLASIK – ${souper}` : `${souper} – KLASIK`);
+
+  let hsize = story ? 72 : 62;
+  let lines = wrapCond(head, hsize, W - 120);
+  if (lines.length > 2) {
+    hsize = fitCond(lines.reduce((a, b) => a.length > b.length ? a : b), hsize, W - 120);
+    lines = wrapCond(head, hsize, W - 120);
+  }
+  const verdict = sk > ss ? 'VÝHRA' : (sk === ss ? 'REMÍZA' : 'PROHRA');
+  const left = home ? sk : ss, right = home ? ss : sk;
+  const info = v('poznamka').toUpperCase() ||
+               [v('datumV'), v('mistoV')].filter(Boolean).join('  ·  ').toUpperCase();
+  bottomBlock(W, H, `${v('kategorie').toUpperCase()}  ·  ${verdict}`, lines, hsize,
+              info || null, story ? 26 : 23, `${left} : ${right}`, story ? 150 : 126);
+}
+
+function renderRozpis(W, H) {
+  const story = H > 1500;
+  drawBackground(W, H, 0.30, 246, 0.55);
+  const nadpis = document.getElementById('nadpis').value.trim().toUpperCase() || 'ROZPIS';
+  const rows = document.getElementById('zapasy').value.split('\n')
+    .map(l => l.trim()).filter(Boolean)
+    .map(l => { const [a, b] = l.split('|'); return [(a || '').trim(), (b || '').trim()]; });
+
+  const webY = H - (story ? 58 : 48);
+  trackedText(WEB, W / 2, webY, story ? 21 : 19, WHITE, 5);
+
+  const ky = story ? 300 : 252;
+  trackedText('ROZPIS ZÁPASŮ', W / 2, ky, story ? 30 : 26, WHITE, 7);
+  const hsize = fitCond(nadpis, story ? 84 : 70, W - 140);
+  const hcy = ky + (story ? 52 : 46) + hsize * 0.5;
+  condText(nadpis, W / 2, hcy, hsize, WHITE);
+  const ly = hcy + hsize * 0.72 + (story ? 40 : 34);
+  ctx.fillStyle = RED; ctx.fillRect(64, ly - 2, W - 128, 4);
+
+  const rowH = story ? 136 : 112, gap = 18;
+  const blockH = rows.length * rowH + Math.max(0, rows.length - 1) * gap;
+  const top = ly + (story ? 56 : 46), bot = webY - (story ? 60 : 48);
+  let y = top + Math.max(0, (bot - top - blockH) / 2);
+
+  rows.forEach(([when, what]) => {
+    rr(64, y, W - 128, rowH, 16); ctx.fillStyle = '#140d0d'; ctx.fill();
+    rr(64, y, 44, rowH, 16); ctx.fillStyle = RED; ctx.fill();
+    ctx.fillStyle = '#140d0d'; ctx.fillRect(78, y, W - 142, rowH);
+    const cy = y + rowH / 2;
+    trackedText(when.toUpperCase(), 108, cy - (story ? 24 : 20), story ? 24 : 21,
+                SAND, 3, 'left');
+    const ws = fitCond(what.toUpperCase(), story ? 42 : 36, W - 300);
+    condText(what.toUpperCase(), 108 + (W - 236) / 2, cy + (story ? 22 : 19), ws, WHITE);
+    y += rowH + gap;
+  });
+}
+
+/* ---------- main ---------- */
+function render() {
+  const story = fmt === 'story';
+  const W = 1080, H = story ? 1920 : 1350;
+  cv.width = W; cv.height = H;
+  document.getElementById('dims').textContent = `${W} × ${H} px`;
+  if (variant === 'gameday') renderGameday(W, H);
+  else if (variant === 'vysledek') renderVysledek(W, H);
+  else renderRozpis(W, H);
+}
+
+function syncGroups() {
+  document.querySelectorAll('.grp').forEach(g => {
+    g.hidden = !g.dataset.for.split(' ').includes(variant);
+  });
+}
+
+document.querySelectorAll('#variant .seg-btn').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#variant .seg-btn').forEach(x => x.classList.remove('active'));
+  b.classList.add('active'); variant = b.dataset.var; syncGroups(); render();
+}));
+document.querySelectorAll('#format .seg-btn').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#format .seg-btn').forEach(x => x.classList.remove('active'));
+  b.classList.add('active'); fmt = b.dataset.fmt; render();
+}));
+document.querySelectorAll('input, textarea').forEach(el => {
+  el.addEventListener('input', render);
+  el.addEventListener('change', render);
+});
+
+const drop = document.getElementById('drop'), file = document.getElementById('file');
+function loadFile(f) {
+  if (!f || !f.type.startsWith('image/')) return;
+  const fr = new FileReader();
+  fr.onload = e => { const im = new Image(); im.onload = () => { photo = im; render(); }; im.src = e.target.result; };
+  fr.readAsDataURL(f);
+}
+drop.addEventListener('click', e => { if (e.target.id !== 'clearPhoto') file.click(); });
+file.addEventListener('change', e => loadFile(e.target.files[0]));
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('over'); loadFile(e.dataTransfer.files[0]);
+});
+document.getElementById('clearPhoto').addEventListener('click', e => {
+  e.stopPropagation(); photo = null; file.value = ''; render();
+});
+window.addEventListener('paste', e => { for (const f of e.clipboardData.files) { loadFile(f); break; } });
+
+document.getElementById('download').addEventListener('click', () => {
+  const base = variant === 'rozpis'
+    ? document.getElementById('nadpis').value
+    : `${document.getElementById('kategorie').value}-${document.getElementById('souper').value}`;
+  const slug = (base || 'klasik').toLowerCase().normalize('NFD')
+    .replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '').slice(0, 46);
+  cv.toBlob(b => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = `klasik-${variant}-${slug}-${fmt}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }, 'image/png');
+});
+
+syncGroups();
+</script>
