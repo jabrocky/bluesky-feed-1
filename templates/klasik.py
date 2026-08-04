@@ -9,6 +9,7 @@ Varianty:
   • klasik_gameday(...)  — pozvánka na zápas
   • klasik_vysledek(...) — výsledek po zápase
   • klasik_rozpis(...)   — rozpis více zápasů
+  • klasik_info(...)     — obecný informační příspěvek
 
 Formáty: format="post" (1080×1350) nebo "story" (1080×1920).
 """
@@ -236,6 +237,30 @@ def klasik_vysledek(kategorie, souper, skore_klasik, skore_souper, out,
     _bottom_block(img, d, W, H, f"{kategorie.upper()}  ·  {verdict}", lines, hsize,
                   extra=info or None, extra_size=26 if story else 23,
                   score=f"{left} : {right}", score_size=150 if story else 126)
+    img.save(out)
+    return out
+
+
+# ───────────────────────────── INFO ─────────────────────────────
+def klasik_info(kicker, titulek, out, format="post", photo=None, podtitulek=None):
+    """Obecný informační příspěvek: kicker, linka, velký titulek, web."""
+    story = format == "story"
+    W, H = (1080, 1920) if story else (1080, 1350)
+    img = _canvas(W, H, photo)
+    _scrim(img, W, H, 0.36 if story else 0.32)
+    _logo_tl(img, 210 if story else 190)
+    d = ImageDraw.Draw(img)
+
+    head = titulek.upper()
+    hsize = 92 if story else 78
+    lines = _wrap_cond(d, head, hsize, W - 120)
+    if len(lines) > 3:
+        hsize = _fit_cond(d, max(lines, key=len), hsize, W - 120, min_size=44)
+        lines = _wrap_cond(d, head, hsize, W - 120)
+
+    _bottom_block(img, d, W, H, kicker.upper(), lines, hsize,
+                  extra=(podtitulek.upper() if podtitulek else None),
+                  extra_size=26 if story else 23)
     img.save(out)
     return out
 

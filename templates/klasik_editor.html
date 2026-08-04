@@ -14,6 +14,7 @@
       <button class="seg-btn active" data-var="gameday">Gameday</button>
       <button class="seg-btn" data-var="vysledek">Výsledek</button>
       <button class="seg-btn" data-var="rozpis">Rozpis</button>
+      <button class="seg-btn" data-var="info">Info</button>
     </div>
 
     <div class="seg" id="format">
@@ -70,6 +71,18 @@
       </div>
       <label>Vlastní spodní řádek <span class="hint">nepovinné</span>
         <input id="poznamka" placeholder="např. HRÁČ ZÁPASU: JAN NOVÁK">
+      </label>
+    </div>
+
+    <div class="grp" data-for="info">
+      <label>Kicker <span class="hint">malý text nad linkou</span>
+        <input id="ikicker" value="SVK" maxlength="40">
+      </label>
+      <label>Titulek
+        <textarea id="ititulek" rows="2">Hráči Klasiku pomáhají i na Slovensku</textarea>
+      </label>
+      <label>Spodní řádek <span class="hint">nepovinné</span>
+        <input id="ipodtitulek" placeholder="např. REPREZENTACE SLOVENSKA · ME B-KATEGÓRIE">
       </label>
     </div>
 
@@ -324,6 +337,22 @@ function renderVysledek(W, H) {
               info || null, story ? 26 : 23, `${left} : ${right}`, story ? 150 : 126);
 }
 
+function renderInfo(W, H) {
+  const story = H > 1500;
+  drawBackground(W, H, story ? 0.36 : 0.32);
+  const v = id => document.getElementById(id).value.trim();
+  const head = (v('ititulek') || 'TITULEK').toUpperCase();
+
+  let hsize = story ? 92 : 78;
+  let lines = wrapCond(head, hsize, W - 120);
+  if (lines.length > 3) {
+    hsize = fitCond(lines.reduce((a, b) => a.length > b.length ? a : b), hsize, W - 120, 44);
+    lines = wrapCond(head, hsize, W - 120);
+  }
+  bottomBlock(W, H, v('ikicker').toUpperCase(), lines, hsize,
+              v('ipodtitulek').toUpperCase() || null, story ? 26 : 23);
+}
+
 function renderRozpis(W, H) {
   const story = H > 1500;
   drawBackground(W, H, 0.30, 246, 0.55);
@@ -369,6 +398,7 @@ function render() {
   document.getElementById('dims').textContent = `${W} × ${H} px`;
   if (variant === 'gameday') renderGameday(W, H);
   else if (variant === 'vysledek') renderVysledek(W, H);
+  else if (variant === 'info') renderInfo(W, H);
   else renderRozpis(W, H);
 }
 
@@ -413,7 +443,9 @@ window.addEventListener('paste', e => { for (const f of e.clipboardData.files) {
 document.getElementById('download').addEventListener('click', () => {
   const base = variant === 'rozpis'
     ? document.getElementById('nadpis').value
-    : `${document.getElementById('kategorie').value}-${document.getElementById('souper').value}`;
+    : variant === 'info'
+      ? document.getElementById('ititulek').value
+      : `${document.getElementById('kategorie').value}-${document.getElementById('souper').value}`;
   const slug = (base || 'klasik').toLowerCase().normalize('NFD')
     .replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '').slice(0, 46);
