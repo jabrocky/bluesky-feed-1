@@ -3,8 +3,8 @@
     <h1>ČLÁNEK NA STORY<span>Milujeme Baseball · 1080×1920</span></h1>
 
     <div class="seg" id="layout">
-      <button class="seg-btn active" data-lay="karta">Výstřižek</button>
-      <button class="seg-btn" data-lay="fotka">Fotka na celou</button>
+      <button class="seg-btn" data-lay="karta">Výstřižek</button>
+      <button class="seg-btn active" data-lay="fotka">Fotka na celou</button>
     </div>
 
     <div class="drop" id="drop">
@@ -131,7 +131,7 @@ const FR = s => `400 ${s}px Arial, Helvetica, sans-serif`;
 
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
 const $ = id => document.getElementById(id);
-let layout = 'karta', photo = null, ready = 0;
+let layout = 'fotka', photo = null, ready = 0;
 const logoP = new Image(), logoS = new Image();
 const done = () => { if (++ready === 2) render(); };
 logoP.onload = done; logoS.onload = done;
@@ -213,6 +213,14 @@ function drawPhoto(x, y, w, h, radius, credit) {
     ctx.fillStyle = 'rgba(255,255,255,.94)';
     ctx.fillText(credit, x + w - 16, y + h - 26);
   }
+}
+function withShadow(fn, blur = 18, alpha = .55) {
+  ctx.save();
+  ctx.shadowColor = `rgba(0,0,0,${alpha})`;
+  ctx.shadowBlur = blur;
+  ctx.shadowOffsetY = 3;
+  fn();
+  ctx.restore();
 }
 function arrowDown(cx, y, size, color) {
   ctx.strokeStyle = color; ctx.lineWidth = 7; ctx.lineCap = 'round';
@@ -338,56 +346,61 @@ function renderFotka(exporting) {
   ctx.drawImage(logoP, (W - lw) / 2, 40, lw, lh);
 
   const rub = $('rubrika').value.trim().toUpperCase();
-  const bottomAnchor = 1500;
-  let y = bottomAnchor;
+  let y = 1470;
 
   const cta = $('cta').value.trim().toUpperCase();
   if (cta) {
-    ctx.font = FB(36); ctx.fillStyle = CREAM;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(cta, W / 2, y);
-    arrowDown(W / 2, y + 36, 50, CREAM);
-    y -= 76;
+    withShadow(() => {
+      ctx.font = FB(36); ctx.fillStyle = CREAM;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(cta, W / 2, y);
+      arrowDown(W / 2, y + 36, 50, CREAM);
+    });
+    y -= 80;
   }
 
   const perex = $('perex').value.trim();
   if (perex) {
     const pl = wrap(perex, FR(31), W - 180);
-    ctx.font = FR(31); ctx.fillStyle = '#ddd4c8';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    [...pl].reverse().forEach(ln => { ctx.fillText(ln, W / 2, y); y -= 44; });
-    y -= 22;
+    withShadow(() => {
+      ctx.font = FR(31); ctx.fillStyle = '#e2dad0';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      let py = y;
+      [...pl].reverse().forEach(ln => { ctx.fillText(ln, W / 2, py); py -= 44; });
+    }, 14, .5);
+    y -= pl.length * 44 + 24;
   }
 
   let hs = 74;
-  let lines = wrap($('titulek').value.trim().toUpperCase() || 'TITULEK', FB(hs), W - 140);
-  while (lines.length > 4 && hs > 46) {
-    hs -= 3;
-    lines = wrap($('titulek').value.trim().toUpperCase(), FB(hs), W - 140);
-  }
-  ctx.fillStyle = CREAM;
-  [...lines].reverse().forEach(ln => {
-    ctx.font = FB(hs);
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(ln, W / 2, y);
-    y -= hs * 1.12;
-  });
+  const head = $('titulek').value.trim().toUpperCase() || 'TITULEK';
+  let lines = wrap(head, FB(hs), W - 140);
+  while (lines.length > 4 && hs > 46) { hs -= 3; lines = wrap(head, FB(hs), W - 140); }
+  withShadow(() => {
+    ctx.fillStyle = CREAM;
+    let hy = y;
+    [...lines].reverse().forEach(ln => {
+      ctx.font = FB(hs);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(ln, W / 2, hy);
+      hy -= hs * 1.12;
+    });
+  }, 26, .6);
+  y -= lines.length * hs * 1.12 - hs * 0.12;
 
-  y -= 16;
+  y -= 20;
   ctx.fillStyle = RUST; ctx.fillRect(W / 2 - 130, y - 3, 260, 6);
-  y -= 52;
-  if (rub) chip(rub, W / 2, y, 28);
+  y -= 54;
+  if (rub) withShadow(() => chip(rub, W / 2, y, 28), 16, .45);
 
   if (!exporting && $('guide').checked) linkGuide();
 
   const credit = $('credit').value.trim();
-  if (credit && photo) {
-    ctx.font = FR(19); ctx.fillStyle = 'rgba(255,255,255,.75)';
-    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    ctx.fillText(credit, W - 40, 232);
-  }
-  ctx.font = FR(26); ctx.fillStyle = '#c9bfb2';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (credit && photo) {
+    ctx.font = FR(20); ctx.fillStyle = 'rgba(233,226,216,.72)';
+    ctx.fillText(credit, W / 2, H - 104);
+  }
+  ctx.font = FR(26); ctx.fillStyle = '#cdc3b6';
   ctx.fillText('milujeme-baseball.cz  ·  #MilujemeBaseball', W / 2, H - 60);
 }
 
