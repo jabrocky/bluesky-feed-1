@@ -1,0 +1,444 @@
+<div class="app">
+  <aside class="panel">
+    <h1>ČLÁNEK NA STORY<span>Milujeme Baseball · 1080×1920</span></h1>
+
+    <div class="seg" id="layout">
+      <button class="seg-btn active" data-lay="karta">Výstřižek</button>
+      <button class="seg-btn" data-lay="fotka">Fotka na celou</button>
+    </div>
+
+    <div class="drop" id="drop">
+      <input type="file" id="file" accept="image/*" hidden>
+      <p><strong>Fotka k článku</strong></p>
+      <p class="hint">Přetáhni sem, klikni, nebo vlož přes Ctrl+V</p>
+      <button type="button" class="ghost" id="clearImg">Odebrat</button>
+    </div>
+
+    <label>Výřez fotky <span class="hint" id="fVal">35 %</span>
+      <input type="range" id="focus" min="0" max="100" value="35">
+    </label>
+
+    <label>Rubrika
+      <input id="rubrika" value="ROZHOVOR" maxlength="34" list="rubPresets">
+    </label>
+    <datalist id="rubPresets">
+      <option value="ROZHOVOR"><option value="REPORTÁŽ"><option value="ANALÝZA">
+      <option value="NOVÝ ČLÁNEK"><option value="MLB"><option value="EXTRALIGA">
+      <option value="REPREZENTACE"><option value="MLÁDEŽ">
+    </datalist>
+
+    <label>Titulek článku
+      <textarea id="titulek" rows="3">Chceme sa naučiť vyhrávať ťažké zápasy</textarea>
+    </label>
+
+    <label>Perex <span class="hint">nepovinné</span>
+      <textarea id="perex" rows="3">Trenér slovenské reprezentace Matej Šišolák o rebuildu národního týmu a cestě na kvalifikaci.</textarea>
+    </label>
+
+    <label>Popisek fotky <span class="hint">nepovinné</span>
+      <input id="credit" placeholder="foto: Petra Šlencová Bílská">
+    </label>
+
+    <label>Výzva k akci
+      <input id="cta" value="ČTI CELÝ ČLÁNEK" maxlength="34">
+    </label>
+
+    <label class="row"><input type="checkbox" id="guide" checked>
+      Vodítko pro odkaz <span class="hint">jen v náhledu</span></label>
+    <label class="row"><input type="checkbox" id="partner"> Logo partnera dole</label>
+
+    <button id="download" class="primary">Stáhnout story PNG</button>
+    <p class="hint center">1080 × 1920 px</p>
+    <p class="hint">Šedivé vodítko ukazuje, kam v Instagramu umístit odkazový sticker — do staženého PNG se nevykreslí.</p>
+  </aside>
+
+  <main class="stage"><canvas id="cv"></canvas></main>
+</div>
+
+<style>
+  :root{
+    --rust:#9a3324; --rust-dark:#76261a; --cream:#f0ebe0;
+    --panel:#ffffff; --line:#e2dbcd; --page:#efece4; --ink:#28221e; --ink-soft:#6e645c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       color:var(--ink);background:var(--page)}
+  .app{display:grid;grid-template-columns:350px 1fr;min-height:100vh}
+  @media (max-width:900px){.app{grid-template-columns:1fr}}
+
+  .panel{background:var(--panel);border-right:1px solid var(--line);padding:22px 20px 40px;
+         display:flex;flex-direction:column;gap:14px;overflow-y:auto;max-height:100vh}
+  @media (max-width:900px){.panel{max-height:none;border-right:0;border-bottom:1px solid var(--line)}}
+  .panel h1{margin:0;font-size:20px;letter-spacing:.03em;color:var(--rust)}
+  .panel h1 span{display:block;font-size:11.5px;font-weight:400;letter-spacing:.1em;
+                 text-transform:uppercase;color:var(--ink-soft);margin-top:4px}
+
+  label{display:block;font-size:12px;font-weight:600;letter-spacing:.05em;
+        text-transform:uppercase;color:var(--ink-soft)}
+  label.row{display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;
+            font-weight:500;letter-spacing:0;color:var(--ink)}
+  label .hint{float:right;text-transform:none;letter-spacing:0;font-weight:500}
+  label.row .hint{float:none;margin-left:auto}
+  input[type=text],input:not([type]),textarea{width:100%;margin-top:6px;padding:9px 11px;
+        font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line);
+        border-radius:9px;resize:vertical}
+  input[type=range]{width:100%;margin-top:8px;accent-color:var(--rust)}
+  textarea{line-height:1.45}
+  input:focus,textarea:focus{outline:2px solid rgba(154,51,36,.32);border-color:var(--rust)}
+
+  .seg{display:flex;gap:8px}
+  .seg-btn{flex:1;padding:9px 6px;font:inherit;font-weight:600;cursor:pointer;
+           background:#fff;border:1px solid var(--line);border-radius:9px;color:var(--ink-soft)}
+  .seg-btn.active{background:var(--rust);border-color:var(--rust);color:#fff}
+
+  .drop{border:2px dashed var(--line);border-radius:12px;padding:15px;text-align:center;
+        cursor:pointer;background:#fbf9f5;transition:.15s}
+  .drop.over{border-color:var(--rust);background:#f7eee9}
+  .drop p{margin:0}
+  .drop p+p{margin-top:4px}
+  .hint{font-size:12px;color:var(--ink-soft);font-weight:400;letter-spacing:0;text-transform:none}
+  .hint.center{text-align:center}
+
+  button.primary{margin-top:4px;padding:13px;font:inherit;font-weight:700;letter-spacing:.04em;
+        color:#fff;background:var(--rust);border:0;border-radius:10px;cursor:pointer}
+  button.primary:hover{background:var(--rust-dark)}
+  button.ghost{margin-top:8px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer;
+        background:#fff;border:1px solid var(--line);border-radius:8px;color:var(--ink-soft)}
+
+  .stage{display:flex;align-items:flex-start;justify-content:center;padding:26px}
+  canvas{max-width:100%;max-height:calc(100vh - 52px);height:auto;
+         box-shadow:0 10px 34px rgba(40,34,30,.2);border-radius:4px;background:var(--cream)}
+
+  @media (prefers-color-scheme: dark){
+    :root{--panel:#1d1b19;--page:#141312;--line:#33302c;--ink:#efe9df;--ink-soft:#a49a8e}
+    input[type=text],input:not([type]),textarea{background:#252220;color:var(--ink)}
+    .seg-btn,button.ghost{background:#252220}
+    .drop{background:#232120}
+  }
+  :root[data-theme="dark"]{--panel:#1d1b19;--page:#141312;--line:#33302c;--ink:#efe9df;--ink-soft:#a49a8e}
+  :root[data-theme="light"]{--panel:#ffffff;--page:#efece4;--line:#e2dbcd;--ink:#28221e;--ink-soft:#6e645c}
+</style>
+
+<script>
+const LOGO_PROJECT = "data:image/png;base64,__PROJECT_B64__";
+const LOGO_SPONSOR = "data:image/png;base64,__SPONSOR_B64__";
+
+const W = 1080, H = 1920;
+const CREAM = "#f0ebe0", CREAM_DK = "#e4ddce", RUST = "#9a3324", RUST_DARK = "#76261a",
+      INK = "#28221e", INK_SOFT = "#6e645c", WHITE = "#fcfaf6", SEAM = "#c68070";
+const FB = s => `700 ${s}px Arial, Helvetica, sans-serif`;
+const FR = s => `400 ${s}px Arial, Helvetica, sans-serif`;
+
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const $ = id => document.getElementById(id);
+let layout = 'karta', photo = null, ready = 0;
+const logoP = new Image(), logoS = new Image();
+const done = () => { if (++ready === 2) render(); };
+logoP.onload = done; logoS.onload = done;
+logoP.src = LOGO_PROJECT; logoS.src = LOGO_SPONSOR;
+
+/* ---------- helpers ---------- */
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function wrap(text, font, maxW) {
+  ctx.font = font;
+  const out = [];
+  for (const para of String(text).split('\n')) {
+    let cur = '';
+    for (const w of para.split(/\s+/).filter(Boolean)) {
+      const t = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(t).width <= maxW) cur = t;
+      else { if (cur) out.push(cur); cur = w; }
+    }
+    if (cur) out.push(cur);
+  }
+  return out;
+}
+function fitFont(text, size, maxW, min = 34) {
+  while (size > min) {
+    ctx.font = FB(size);
+    if (ctx.measureText(text).width <= maxW) break;
+    size -= 2;
+  }
+  return size;
+}
+function seam(cx, cy, R, a0, a1, stitch = 36, gap = 6, w = 6) {
+  ctx.strokeStyle = SEAM; ctx.lineWidth = w; ctx.lineCap = 'round';
+  for (let a = a0; a < a1; a += gap) {
+    const rad = a * Math.PI / 180;
+    const px = cx + R * Math.cos(rad), py = cy + R * Math.sin(rad);
+    const tx = -Math.sin(rad), ty = Math.cos(rad);
+    const nx = Math.cos(rad), ny = Math.sin(rad);
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(px + s * tx * stitch * 0.6, py + s * ty * stitch * 0.6);
+      ctx.lineTo(px + nx * stitch * 0.75, py + ny * stitch * 0.75);
+      ctx.stroke();
+    }
+  }
+}
+function chip(text, cx, cy, size) {
+  ctx.font = FB(size);
+  const w = ctx.measureText(text).width + 66, h = size * 2.1;
+  rr(cx - w / 2, cy - h / 2, w, h, h / 2);
+  ctx.fillStyle = INK; ctx.fill();
+  ctx.fillStyle = CREAM; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, cx, cy);
+}
+function drawPhoto(x, y, w, h, radius, credit) {
+  ctx.save();
+  rr(x, y, w, h, radius); ctx.clip();
+  if (photo) {
+    const sc = Math.max(w / photo.width, h / photo.height);
+    const nw = photo.width * sc, nh = photo.height * sc;
+    const f = +$('focus').value / 100;
+    ctx.drawImage(photo, x + (w - nw) / 2, y - (nh - h) * f, nw, nh);
+  } else {
+    ctx.fillStyle = '#e1dacb'; ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#b4aa9b'; ctx.font = FB(48);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('FOTO', x + w / 2, y + h / 2);
+  }
+  ctx.restore();
+  rr(x, y, w, h, radius); ctx.strokeStyle = RUST; ctx.lineWidth = 4; ctx.stroke();
+  if (credit && photo) {
+    ctx.font = FR(19); ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,255,255,.94)';
+    ctx.fillText(credit, x + w - 16, y + h - 26);
+  }
+}
+function arrowDown(cx, y, size, color) {
+  ctx.strokeStyle = color; ctx.lineWidth = 7; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx, y); ctx.lineTo(cx, y + size); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - size * 0.38, y + size * 0.55);
+  ctx.lineTo(cx, y + size);
+  ctx.lineTo(cx + size * 0.38, y + size * 0.55);
+  ctx.stroke();
+}
+function linkGuide() {
+  ctx.save();
+  ctx.setLineDash([16, 14]);
+  ctx.strokeStyle = 'rgba(40,34,30,.42)'; ctx.lineWidth = 3;
+  rr(230, 1610, W - 460, 130, 22); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font = FB(24); ctx.fillStyle = 'rgba(40,34,30,.5)';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('MÍSTO NA ODKAZOVÝ STICKER', W / 2, 1675);
+  ctx.restore();
+}
+
+/* ---------- layout: výstřižek ---------- */
+function renderKarta(exporting) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, CREAM); g.addColorStop(1, CREAM_DK);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  seam(W + 260, -240, 640, 100, 168);
+  seam(-260, H + 240, 640, 282, 350);
+  ctx.fillStyle = RUST;
+  ctx.fillRect(0, 0, W, 14); ctx.fillRect(0, H - 14, W, 14);
+
+  const lh = 132, lw = logoP.width * lh / logoP.height;
+  ctx.drawImage(logoP, (W - lw) / 2, 42, lw, lh);
+
+  const rub = $('rubrika').value.trim().toUpperCase();
+  if (rub) chip(rub, W / 2, 236, 28);
+
+  /* titulek */
+  let hs = 62;
+  let lines = wrap($('titulek').value.trim().toUpperCase() || 'TITULEK', FB(hs), W - 150);
+  while (lines.length > 3 && hs > 40) {
+    hs -= 3;
+    lines = wrap($('titulek').value.trim().toUpperCase(), FB(hs), W - 150);
+  }
+  let y = 320;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = RUST_DARK;
+  lines.forEach(ln => { ctx.font = FB(hs); ctx.fillText(ln, W / 2, y + hs * 0.5); y += hs * 1.14; });
+
+  /* perex */
+  const perex = $('perex').value.trim();
+  const pLines = perex ? wrap(perex, FR(32), W - 250) : [];
+  const pH = pLines.length ? pLines.length * 46 + 52 : 0;
+
+  const ctaH = 150;
+  const footTop = H - ($('partner').checked ? 250 : 150);
+  const phTop = y + 26;
+  let phH = footTop - phTop - 26 - pH - 24 - ctaH;
+  phH = Math.max(300, Math.min(700, phH));
+  drawPhoto(70, phTop, W - 140, phH, 22, $('credit').value.trim());
+  y = phTop + phH;
+
+  if (pH) {
+    y += 26;
+    rr(70, y, W - 140, pH, 20);
+    ctx.fillStyle = WHITE; ctx.fill();
+    ctx.strokeStyle = '#cdc3b4'; ctx.lineWidth = 2; ctx.stroke();
+    rr(70, y, 22, pH, 10); ctx.fillStyle = RUST; ctx.fill();
+    ctx.font = FR(32); ctx.fillStyle = INK;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    let py = y + 26 + 23;
+    pLines.forEach(ln => { ctx.fillText(ln, 116, py); py += 46; });
+    y += pH;
+  }
+
+  /* CTA */
+  y += 34;
+  const cta = $('cta').value.trim().toUpperCase();
+  if (cta) {
+    ctx.font = FB(38); ctx.fillStyle = RUST_DARK;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(cta, W / 2, y + 20);
+    arrowDown(W / 2, y + 58, 54, RUST);
+  }
+
+  if (!exporting && $('guide').checked) linkGuide();
+
+  /* patička */
+  if ($('partner').checked) {
+    ctx.font = FB(20); ctx.fillStyle = INK_SOFT;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('PARTNER', W / 2, H - 195);
+    const sh = 62, sw = logoS.width * sh / logoS.height;
+    ctx.drawImage(logoS, (W - sw) / 2, H - 176, sw, sh);
+  }
+  ctx.font = FR(27); ctx.fillStyle = INK_SOFT;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('milujeme-baseball.cz  ·  #MilujemeBaseball  #BaseballCzechia', W / 2, H - 62);
+}
+
+/* ---------- layout: fotka na celou ---------- */
+function renderFotka(exporting) {
+  ctx.fillStyle = '#1a1512'; ctx.fillRect(0, 0, W, H);
+  if (photo) {
+    const sc = Math.max(W / photo.width, H / photo.height);
+    const nw = photo.width * sc, nh = photo.height * sc;
+    const f = +$('focus').value / 100;
+    ctx.drawImage(photo, (W - nw) / 2, -(nh - H) * f, nw, nh);
+  }
+  const g = ctx.createLinearGradient(0, H * 0.30, 0, H);
+  g.addColorStop(0, 'rgba(24,18,15,0)');
+  g.addColorStop(0.5, 'rgba(24,18,15,.62)');
+  g.addColorStop(1, 'rgba(24,18,15,.95)');
+  ctx.fillStyle = g; ctx.fillRect(0, H * 0.30, W, H * 0.70);
+  const g2 = ctx.createLinearGradient(0, 0, 0, 300);
+  g2.addColorStop(0, 'rgba(24,18,15,.72)'); g2.addColorStop(1, 'rgba(24,18,15,0)');
+  ctx.fillStyle = g2; ctx.fillRect(0, 0, W, 300);
+  ctx.fillStyle = RUST;
+  ctx.fillRect(0, 0, W, 14); ctx.fillRect(0, H - 14, W, 14);
+
+  const lh = 118, lw = logoP.width * lh / logoP.height;
+  ctx.drawImage(logoP, (W - lw) / 2, 40, lw, lh);
+
+  const rub = $('rubrika').value.trim().toUpperCase();
+  const bottomAnchor = 1500;
+  let y = bottomAnchor;
+
+  const cta = $('cta').value.trim().toUpperCase();
+  if (cta) {
+    ctx.font = FB(36); ctx.fillStyle = CREAM;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(cta, W / 2, y);
+    arrowDown(W / 2, y + 36, 50, CREAM);
+    y -= 76;
+  }
+
+  const perex = $('perex').value.trim();
+  if (perex) {
+    const pl = wrap(perex, FR(31), W - 180);
+    ctx.font = FR(31); ctx.fillStyle = '#ddd4c8';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    [...pl].reverse().forEach(ln => { ctx.fillText(ln, W / 2, y); y -= 44; });
+    y -= 22;
+  }
+
+  let hs = 74;
+  let lines = wrap($('titulek').value.trim().toUpperCase() || 'TITULEK', FB(hs), W - 140);
+  while (lines.length > 4 && hs > 46) {
+    hs -= 3;
+    lines = wrap($('titulek').value.trim().toUpperCase(), FB(hs), W - 140);
+  }
+  ctx.fillStyle = CREAM;
+  [...lines].reverse().forEach(ln => {
+    ctx.font = FB(hs);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(ln, W / 2, y);
+    y -= hs * 1.12;
+  });
+
+  y -= 16;
+  ctx.fillStyle = RUST; ctx.fillRect(W / 2 - 130, y - 3, 260, 6);
+  y -= 52;
+  if (rub) chip(rub, W / 2, y, 28);
+
+  if (!exporting && $('guide').checked) linkGuide();
+
+  const credit = $('credit').value.trim();
+  if (credit && photo) {
+    ctx.font = FR(19); ctx.fillStyle = 'rgba(255,255,255,.75)';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(credit, W - 40, 232);
+  }
+  ctx.font = FR(26); ctx.fillStyle = '#c9bfb2';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('milujeme-baseball.cz  ·  #MilujemeBaseball', W / 2, H - 60);
+}
+
+function render(exporting = false) {
+  cv.width = W; cv.height = H;
+  $('fVal').textContent = $('focus').value + ' %';
+  if (layout === 'karta') renderKarta(exporting);
+  else renderFotka(exporting);
+}
+
+/* ---------- UI ---------- */
+document.querySelectorAll('#layout .seg-btn').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#layout .seg-btn').forEach(x => x.classList.remove('active'));
+  b.classList.add('active'); layout = b.dataset.lay; render();
+}));
+document.querySelectorAll('input, textarea').forEach(el => {
+  el.addEventListener('input', () => render());
+  el.addEventListener('change', () => render());
+});
+
+const drop = $('drop'), file = $('file');
+function loadFile(f) {
+  if (!f || !f.type.startsWith('image/')) return;
+  const fr = new FileReader();
+  fr.onload = e => { const im = new Image(); im.onload = () => { photo = im; render(); }; im.src = e.target.result; };
+  fr.readAsDataURL(f);
+}
+drop.addEventListener('click', e => { if (e.target.id !== 'clearImg') file.click(); });
+file.addEventListener('change', e => loadFile(e.target.files[0]));
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('over'); loadFile(e.dataTransfer.files[0]);
+});
+$('clearImg').addEventListener('click', e => {
+  e.stopPropagation(); photo = null; file.value = ''; render();
+});
+window.addEventListener('paste', e => { for (const f of e.clipboardData.files) { loadFile(f); break; } });
+
+$('download').addEventListener('click', () => {
+  render(true);
+  const slug = ($('titulek').value.trim() || 'clanek').toLowerCase().normalize('NFD')
+    .replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '').slice(0, 46);
+  cv.toBlob(b => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = `story-${slug}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    render(false);
+  }, 'image/png');
+});
+</script>
