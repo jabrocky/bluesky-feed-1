@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Story z příspěvku</title>
+</head>
+<body>
+<div class="app">
+  <aside class="panel">
+    <h1>STORY Z PŘÍSPĚVKU<span>Rozostřené pozadí · 1080×1920</span></h1>
+
+    <div class="drop" id="drop">
+      <input type="file" id="file" accept="image/*" hidden>
+      <p><strong>Grafika příspěvku</strong></p>
+      <p class="hint">Přetáhni sem, klikni, nebo vlož přes Ctrl+V</p>
+      <button type="button" class="ghost" id="clearImg">Odebrat</button>
+    </div>
+
+    <label>Šířka grafiky <span class="hint" id="wVal">86 %</span>
+      <input type="range" id="width" min="60" max="100" value="86">
+    </label>
+
+    <label>Svislá pozice <span class="hint" id="yVal">50 %</span>
+      <input type="range" id="posY" min="20" max="80" value="50">
+    </label>
+
+    <label>Rozostření pozadí <span class="hint" id="bVal">46 px</span>
+      <input type="range" id="blur" min="10" max="90" value="46">
+    </label>
+
+    <label>Ztmavení pozadí <span class="hint" id="dVal">28 %</span>
+      <input type="range" id="dark" min="0" max="70" value="28">
+    </label>
+
+    <label>Zaoblení rohů <span class="hint" id="rVal">24 px</span>
+      <input type="range" id="radius" min="0" max="60" value="24">
+    </label>
+
+    <label class="row"><input type="checkbox" id="shadow" checked> Stín pod grafikou</label>
+    <label class="row"><input type="checkbox" id="fillBg" checked> Pozadí z vložené grafiky</label>
+
+    <button id="download" class="primary">Stáhnout story PNG</button>
+    <p class="hint center" id="dims">1080 × 1920 px</p>
+    <p class="hint">Tip: funguje s libovolným poměrem stran — 4:5, 1:1 i na šířku.</p>
+  </aside>
+
+  <main class="stage"><canvas id="cv"></canvas></main>
+</div>
+
+<style>
+  :root{
+    --accent:#c8323b; --panel:#ffffff; --line:#e4e0da; --page:#f2f0ed;
+    --ink:#22201e; --ink-soft:#767069;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       color:var(--ink);background:var(--page)}
+  .app{display:grid;grid-template-columns:340px 1fr;min-height:100vh}
+  @media (max-width:900px){.app{grid-template-columns:1fr}}
+
+  .panel{background:var(--panel);border-right:1px solid var(--line);padding:22px 20px 40px;
+         display:flex;flex-direction:column;gap:15px;overflow-y:auto;max-height:100vh}
+  @media (max-width:900px){.panel{max-height:none;border-right:0;border-bottom:1px solid var(--line)}}
+  .panel h1{margin:0;font-size:20px;letter-spacing:.02em;color:var(--accent)}
+  .panel h1 span{display:block;font-size:11.5px;font-weight:400;letter-spacing:.09em;
+                 text-transform:uppercase;color:var(--ink-soft);margin-top:4px}
+
+  label{display:block;font-size:12px;font-weight:600;letter-spacing:.05em;
+        text-transform:uppercase;color:var(--ink-soft)}
+  label.row{display:flex;align-items:center;gap:8px;text-transform:none;font-size:14px;
+            font-weight:500;letter-spacing:0;color:var(--ink)}
+  label .hint{float:right;text-transform:none;letter-spacing:0;font-weight:500}
+  input[type=range]{width:100%;margin-top:8px;accent-color:var(--accent)}
+
+  .drop{border:2px dashed var(--line);border-radius:12px;padding:16px;text-align:center;
+        cursor:pointer;background:#faf8f6;transition:.15s}
+  .drop.over{border-color:var(--accent);background:#fbeff0}
+  .drop p{margin:0}
+  .drop p+p{margin-top:4px}
+  .hint{font-size:12px;color:var(--ink-soft);font-weight:400;letter-spacing:0;text-transform:none}
+  .hint.center{text-align:center}
+
+  button.primary{margin-top:6px;padding:13px;font:inherit;font-weight:700;letter-spacing:.04em;
+        color:#fff;background:var(--accent);border:0;border-radius:10px;cursor:pointer}
+  button.primary:hover{background:#a52830}
+  button.ghost{margin-top:8px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer;
+        background:#fff;border:1px solid var(--line);border-radius:8px;color:var(--ink-soft)}
+
+  .stage{display:flex;align-items:flex-start;justify-content:center;padding:26px}
+  canvas{max-width:100%;max-height:calc(100vh - 52px);height:auto;
+         box-shadow:0 10px 34px rgba(34,32,30,.2);border-radius:4px;background:#15130f}
+
+  @media (prefers-color-scheme: dark){
+    :root{--panel:#1b1a18;--page:#121110;--line:#332f2c;--ink:#efeae4;--ink-soft:#a49c94}
+    .drop{background:#221f1d}
+    button.ghost{background:#221f1d}
+  }
+  :root[data-theme="dark"]{--panel:#1b1a18;--page:#121110;--line:#332f2c;--ink:#efeae4;--ink-soft:#a49c94}
+  :root[data-theme="light"]{--panel:#ffffff;--page:#f2f0ed;--line:#e4e0da;--ink:#22201e;--ink-soft:#767069}
+</style>
+
+<script>
+const W = 1080, H = 1920;
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let img = null;
+
+const $ = id => document.getElementById(id);
+const val = id => +$(id).value;
+
+function rr(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+
+function render() {
+  cv.width = W; cv.height = H;
+  $('wVal').textContent = val('width') + ' %';
+  $('yVal').textContent = val('posY') + ' %';
+  $('bVal').textContent = val('blur') + ' px';
+  $('dVal').textContent = val('dark') + ' %';
+  $('rVal').textContent = val('radius') + ' px';
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#15130f';
+  ctx.fillRect(0, 0, W, H);
+
+  if (!img) {
+    ctx.fillStyle = 'rgba(255,255,255,.28)';
+    ctx.font = '600 44px Arial, Helvetica, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Vlož grafiku příspěvku', W / 2, H / 2);
+    return;
+  }
+
+  /* --- rozostřené pozadí --- */
+  if ($('fillBg').checked) {
+    const over = 1.25;                       // přesah, aby blur neměl světlé okraje
+    const sc = Math.max(W / img.width, H / img.height) * over;
+    const nw = img.width * sc, nh = img.height * sc;
+    ctx.save();
+    ctx.filter = `blur(${val('blur')}px)`;
+    ctx.drawImage(img, (W - nw) / 2, (H - nh) / 2, nw, nh);
+    ctx.restore();
+    if (val('dark')) {
+      ctx.fillStyle = `rgba(0,0,0,${val('dark') / 100})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  /* --- grafika navrchu --- */
+  const targetW = W * val('width') / 100;
+  const scale = targetW / img.width;
+  const dw = targetW, dh = img.height * scale;
+  const dx = (W - dw) / 2;
+  const dy = (H - dh) * (val('posY') / 100);
+  const r = val('radius');
+
+  if ($('shadow').checked) {
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.55)';
+    ctx.shadowBlur = 48;
+    ctx.shadowOffsetY = 16;
+    ctx.fillStyle = '#000';
+    rr(ctx, dx, dy, dw, dh, r); ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.save();
+  rr(ctx, dx, dy, dw, dh, r);
+  ctx.clip();
+  ctx.drawImage(img, dx, dy, dw, dh);
+  ctx.restore();
+}
+
+/* ---------- vstupy ---------- */
+['width', 'posY', 'blur', 'dark', 'radius'].forEach(id =>
+  $(id).addEventListener('input', render));
+['shadow', 'fillBg'].forEach(id => $(id).addEventListener('change', render));
+
+const drop = $('drop'), file = $('file');
+function loadFile(f) {
+  if (!f || !f.type.startsWith('image/')) return;
+  const fr = new FileReader();
+  fr.onload = e => {
+    const im = new Image();
+    im.onload = () => { img = im; render(); };
+    im.src = e.target.result;
+  };
+  fr.readAsDataURL(f);
+}
+drop.addEventListener('click', e => { if (e.target.id !== 'clearImg') file.click(); });
+file.addEventListener('change', e => loadFile(e.target.files[0]));
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('over'); loadFile(e.dataTransfer.files[0]);
+});
+$('clearImg').addEventListener('click', e => {
+  e.stopPropagation(); img = null; file.value = ''; render();
+});
+window.addEventListener('paste', e => { for (const f of e.clipboardData.files) { loadFile(f); break; } });
+
+$('download').addEventListener('click', () => {
+  cv.toBlob(b => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = 'story.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }, 'image/png');
+});
+
+render();
+</script>
+
+</body>
+</html>
